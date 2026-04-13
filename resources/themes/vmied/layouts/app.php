@@ -54,7 +54,7 @@
 
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            overflow: hidden; 
+            /*overflow: hidden; */
             transition: background 0.3s ease;
         }
         [data-bs-theme="light"] body { background: #f8f9fa; }
@@ -278,7 +278,7 @@
             <!-- CẤU HÌNH -->
             <div class="nav-section-header">Cấu hình</div>
             
-            <a href="#" class="nav-link-custom">
+            <a href="/config/brands" class="nav-link-custom">
                 <i class="bi bi-geo-alt icon-main"></i>
                 <span class="ms-2">Chi nhánh</span>
             </a>
@@ -400,167 +400,8 @@
     </nav>
 
     <!-- MAIN CONTENT -->
-    <main class="flex-grow-1 overflow-y-auto p-4 p-md-5 w-100 position-relative z-1">
-        
-        <div class="d-flex justify-content-between align-items-center mb-4 animate-fade-up">
-            <h1 class="fs-6 fw-bold m-0 text-body text-uppercase" style="letter-spacing: 1px;">Dashboard</h1>
-            <div class="fs-8 text-secondary border border-secondary-subtle rounded-pill px-3 py-1 bg-body d-flex align-items-center">
-                Vừa cập nhật
-            </div>
-        </div>
-
-        <!-- STATS ROW -->
-        <div class="row g-3 mb-4">
-            <div class="col-sm-6 col-xl-3 animate-fade-up">
-                <div class="card clean-card hover-card h-100 rounded-3">
-                    <div class="card-body p-4">
-                        <div class="d-flex justify-content-between align-items-start mb-2">
-                            <h2 class="display-6 fw-medium mb-0 lh-1 text-body">5</h2>
-                            <i class="bi bi-boxes text-secondary fs-5 lh-1"></i>
-                        </div>
-                        <div class="text-body fw-medium fs-7 mb-1">Chi nhánh hoạt động</div>
-                        <div class="text-secondary fs-8">0 tạm dừng, 5 đang hoạt động</div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-sm-6 col-xl-3 animate-fade-up delay-1">
-                <div class="card clean-card hover-card h-100 rounded-3">
-                    <div class="card-body p-4">
-                        <div class="d-flex justify-content-between align-items-start mb-2">
-                            <h2 class="display-6 fw-medium mb-0 lh-1 text-body">12</h2>
-                            <i class="bi bi-calendar-check text-secondary fs-5 lh-1"></i>
-                        </div>
-                        <div class="text-body fw-medium fs-7 mb-1">Lịch hẹn hôm nay</div>
-                        <div class="text-secondary fs-8">3 đang chờ, 2 đã hủy</div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-sm-6 col-xl-3 animate-fade-up delay-2">
-                <div class="card clean-card hover-card h-100 rounded-3">
-                    <div class="card-body p-4">
-                        <div class="d-flex justify-content-between align-items-start mb-2">
-                            <h2 class="display-6 fw-medium mb-0 lh-1 text-body">₫0</h2>
-                            <i class="bi bi-currency-dollar text-secondary fs-5 lh-1"></i>
-                        </div>
-                        <div class="text-body fw-medium fs-7 mb-1">Doanh thu tháng</div>
-                        <div class="text-secondary fs-8">Không giới hạn ngân sách</div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-sm-6 col-xl-3 animate-fade-up delay-3">
-                <div class="card clean-card hover-card h-100 rounded-3">
-                    <div class="card-body p-4">
-                        <div class="d-flex justify-content-between align-items-start mb-2">
-                            <h2 class="display-6 fw-medium mb-0 lh-1 text-body">0</h2>
-                            <i class="bi bi-shield-check text-secondary fs-5 lh-1"></i>
-                        </div>
-                        <div class="text-body fw-medium fs-7 mb-1">Chờ phê duyệt</div>
-                        <div class="text-secondary fs-8">Không có yêu cầu mới</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- CHARTS & LISTS ROW -->
-        <div class="row g-4 pb-4">
-            <div class="col-xl-6 d-flex flex-column gap-3">
-                <div class="fs-8 fw-semibold text-secondary text-uppercase tracking-wide ps-1 animate-fade-up">Phân tích</div>
-                
-                <div class="row g-3 flex-grow-1">
-                    <div class="col-md-6 animate-fade-up delay-1">
-                        <div class="card clean-card hover-card h-100 rounded-3">
-                            <div class="card-body p-4 d-flex flex-column">
-                                <div class="text-body fw-medium fs-7 mb-1">Hoạt động dịch vụ</div>
-                                <div class="text-secondary fs-8 mb-2">14 ngày qua</div>
-                                <div class="chart-area flex-grow-1">
-                                    <div class="bar-group">
-                                        <div class="bar" style="height: 65%; background-color: var(--eclo-accent-color);"></div>
-                                        <div class="bar" style="height: 35%; background-color: var(--eclo-success-color);"></div>
-                                    </div>
-                                    <div class="bar-group">
-                                        <div class="bar" style="height: 20%; background-color: var(--eclo-warning-color);"></div>
-                                        <div class="bar bg-secondary" style="height: 40%;"></div>
-                                    </div>
-                                    <div class="bar-group">
-                                        <div class="bar" style="height: 80%; background-color: var(--eclo-accent-color);"></div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="col-md-6 animate-fade-up delay-2">
-                        <div class="card clean-card hover-card h-100 rounded-3">
-                            <div class="card-body p-4 d-flex flex-column">
-                                <div class="text-body fw-medium fs-7 mb-1">Trạng thái lịch hẹn</div>
-                                <div class="text-secondary fs-8 mb-2">14 ngày qua</div>
-                                <div class="chart-area flex-grow-1">
-                                    <div class="bar-group">
-                                        <div class="bar" style="height: 15%; background-color: var(--eclo-success-color);"></div>
-                                        <div class="bar" style="height: 20%; background-color: var(--eclo-accent-color);"></div>
-                                        <div class="bar" style="height: 55%; background-color: var(--eclo-blue-color);"></div>
-                                    </div>
-                                </div>
-                                <div class="d-flex gap-3 mt-4 pt-2 fs-8 text-secondary flex-wrap justify-content-center">
-                                    <div class="d-flex align-items-center"><span class="legend-dot" style="background-color: var(--eclo-blue-color);"></span> Chờ</div>
-                                    <div class="d-flex align-items-center"><span class="legend-dot" style="background-color: var(--eclo-success-color);"></span> Xong</div>
-                                    <div class="d-flex align-items-center"><span class="legend-dot" style="background-color: var(--eclo-accent-color);"></span> Hủy</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- RECENT TASKS COLUMN -->
-            <div class="col-xl-6 animate-fade-up delay-3 d-flex flex-column gap-3">
-                <div class="fs-8 fw-semibold text-secondary text-uppercase tracking-wide ps-1">Lịch hẹn gần đây</div>
-                
-                <div class="card clean-card rounded-3 overflow-hidden flex-grow-1 border-0">
-                    <div class="list-group list-group-flush">
-                        <div class="list-group-item bg-transparent border-secondary-subtle d-flex align-items-center py-3 px-4 fs-7 text-body m-0 rounded-0" style="transition: var(--eclo-transition);">
-                            <i class="bi bi-dash text-secondary me-3"></i>
-                            <i class="bi bi-circle-fill me-3" style="color: var(--eclo-success-color); font-size: 0.5rem;"></i>
-                            <span class="text-body fw-medium me-3">LH-31</span>
-                            <div class="avatar border-0 me-2 text-secondary">AN</div>
-                            <span class="text-secondary me-3">Nhân viên A</span>
-                            <span class="text-truncate flex-grow-1">Massage thư giãn</span>
-                            <span class="text-secondary fs-8 ms-3 text-nowrap">6 ngày trước</span>
-                        </div>
-                        
-                        <div class="list-group-item bg-transparent border-secondary-subtle d-flex align-items-center py-3 px-4 fs-7 text-body m-0 rounded-0" style="transition: var(--eclo-transition);">
-                            <i class="bi bi-exclamation-triangle text-accent me-3"></i>
-                            <i class="bi bi-circle-fill text-primary me-3" style="font-size: 0.5rem;"></i>
-                            <span class="text-body fw-medium me-3">LH-25</span>
-                            <div class="avatar border-0 me-2 text-secondary">BN</div>
-                            <span class="text-secondary me-3">Nhân viên B</span>
-                            <span class="text-truncate flex-grow-1">Chăm sóc da mặt</span>
-                            <span class="text-secondary fs-8 ms-3 text-nowrap">6 ngày trước</span>
-                        </div>
-                        
-                        <div class="list-group-item bg-transparent border-secondary-subtle d-flex align-items-center py-3 px-4 fs-7 text-body m-0 rounded-0" style="transition: var(--eclo-transition);">
-                            <i class="bi bi-arrow-up-short text-warning me-3 fs-5"></i>
-                            <i class="bi bi-circle-fill text-primary me-3" style="font-size: 0.5rem;"></i>
-                            <span class="text-body fw-medium me-3">LH-26</span>
-                            <div class="avatar border-0 me-2 text-secondary">CN</div>
-                            <span class="text-secondary me-3">Nhân viên C</span>
-                            <span class="text-truncate flex-grow-1">Gội đầu dưỡng sinh</span>
-                            <span class="text-secondary fs-8 ms-3 text-nowrap">6 ngày trước</span>
-                        </div>
-
-                        <div class="list-group-item bg-transparent border-transparent d-flex align-items-center py-3 px-4 fs-7 text-body m-0 rounded-0 border-bottom-0" style="transition: var(--eclo-transition);">
-                            <i class="bi bi-arrow-down-short text-primary me-3 fs-5"></i>
-                            <i class="bi bi-circle-fill text-secondary me-3" style="font-size: 0.5rem;"></i>
-                            <span class="text-body fw-medium me-3">LH-27</span>
-                            <div class="avatar border-0 me-2 text-secondary">DN</div>
-                            <span class="text-secondary me-3">Nhân viên D</span>
-                            <span class="text-truncate flex-grow-1">Tắm trắng toàn thân</span>
-                            <span class="text-secondary fs-8 ms-3 text-nowrap">6 ngày trước</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <main class="flex-grow-1 overflow-y-auto p-4 p-md-5 w-100">
+        <?php echo $this->yield('content'); ?>
     </main>
 
 <!-- Bootstrap JS -->
