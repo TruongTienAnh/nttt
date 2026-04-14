@@ -1,313 +1,62 @@
 <?php
 
-namespace App\Controllers;
+namespace App\Jobs;
 
-use App\Jobs\ProcessHaravanWebhookJob;
-
-class HaravanWebhookController
+class ProcessHaravanWebhookJob
 {
-    // ==========================================================
-    // PUBLIC — OAuth callback
-    // ==========================================================
+    protected $topic;
+    protected $payload;
+    protected $orgId;
 
-    public function callback(): void
+    // Khi khởi tạo Job, ta nạp data vào để nó "đóng băng" (Serialize)
+    public function __construct($topic, $payload, $orgId)
     {
-        $code  = $_GET['code']  ?? '';
-        $error = $_GET['error'] ?? '';
-        $shopFromUrl = $_GET['shop'] ?? ''; // Lấy từ ?shop=namtoanthinh.myharavan.com
-    
-        if ($error || !$code) {
-            echo json_encode(['error' => 'User denied or missing code']);
-            exit;
-        }
-    
-        // 1. Đổi code lấy Token
-        $tokenData = $this->exchangeToken($code);
-    
-        if (empty($tokenData['access_token'])) {
-            echo json_encode(['error' => 'Cannot get access_token', 'data' => $tokenData]);
-            exit;
-        }
-    
-        $accessToken = $tokenData['access_token'];
-        $orgId = '';
-        $orgName = '';
-    
-        // 2. Giải mã id_token để lấy orgsub (định danh shop) và orgname
-        if (!empty($tokenData['id_token'])) {
-            $parts = explode('.', $tokenData['id_token']);
-            if (count($parts) === 3) {
-                // Giải mã phần Payload của JWT
-                $payload = json_decode(base64_decode(str_replace(['-', '_'], ['+', '/'], $parts[1])), true);
-                
-                // Dựa trên dữ liệu bạn check: orgsub là "namtoanthinh", orgname là "Gunshop.vn"
-                $orgId   = $payload['orgsub'] ?? ($payload['org_id'] ?? '');
-                $orgName = $payload['orgname'] ?? '';
-            }
-        }
-    
-        // 3. Fallback: Nếu trong token không có, lấy từ tham số shop trên URL
-        if (empty($orgId) && !empty($shopFromUrl)) {
-            $orgId = str_replace('.myharavan.com', '', $shopFromUrl);
-        }
-    
-        if (empty($orgName)) {
-            $orgName = 'Shop ' . $orgId;
-        }
-    
-        // 4. Kiểm tra cuối cùng trước khi lưu
-        if (empty($orgId)) {
-            echo json_encode(['error' => 'Could not determine Shop Slug (orgsub)']);
-            exit;
-        }
-    
-        // 5. Lưu vào bảng organizations (cột slug) và integrations
-        $this->saveIntegration($orgId, $accessToken, $tokenData);
-    
-        // 6. Đăng ký nhận dữ liệu đơn hàng
-        $this->subscribeWebhook($accessToken);
-    
-        // 7. Hoàn tất và chuyển hướng
-        header('Location: /app/settings?haravan=connected');
-        exit;
+        $this->topic   = $topic;
+        $this->payload = $payload;
+        $this->orgId   = $orgId;
     }
 
-    // ==========================================================
-    // PUBLIC — Webhook handler
-    // ==========================================================
-
-    public function handle(): void
+    // Class Queue của bạn sẽ tự động gọi hàm này khi "rã đông" Job
+    public function handle()
     {
-        $rawBody = file_get_contents('php://input');
-        $payload = json_decode($rawBody, true);
-        
-    
-        if (!$payload) {
-            http_response_code(400);
-            exit;
-        }
-    
-        // 1. Lấy Header theo cách an toàn nhất
-        $headers = function_exists('getallheaders') ? getallheaders() : [];
-        $topic = $headers['X-Haravan-Topic'] ?? $headers['x-haravan-topic'] ?? $_SERVER['HTTP_X_HARAVAN_TOPIC'] ?? '';
-        $haravanOrgId = $headers['X-Haravan-Org-Id'] ?? $headers['x-haravan-org-id'] ?? $_SERVER['HTTP_X_HARAVAN_ORG_ID'] ?? '';
-    
-        // 2. FALLBACK: Nếu Header bị Nginx nuốt, ta tự tìm Org ID trong Payload
-        if (empty($haravanOrgId)) {
-            // Haravan luôn để OrgID trong link ảnh sản phẩm hoặc các trường liên quan
-            // Ví dụ: ...products/1000343028/...
-            if (isset($payload['line_items'][0]['image']['src'])) {
-                preg_match('/products\/(\d+)\//', $payload['line_items'][0]['image']['src'], $matches);
-                $haravanOrgId = $matches[1] ?? '';
-            }
-        }
-    
-        // 3. TRẢ VỀ 200 NGAY (Để Haravan khỏi bắn lại liên tùng tục)
-        http_response_code(200);
-        if (function_exists('fastcgi_finish_request')) {
-            fastcgi_finish_request();
-        }
-    
-        // 4. KIỂM TRA SHOP TRONG DB
-        $orgId = $this->resolveOrgId((string)$haravanOrgId);
-    
-        if (!$orgId) {
-            // In log kèm theo ID tìm được để debug cho dễ
-            $this->writeLog($topic, (string)$haravanOrgId, 'error', 'Organization not found in DB. Payload ID detected: ' . $haravanOrgId);
-            exit;
-        }
-    
-        // 5. XỬ LÝ LOGIC
         try {
-            switch ($topic) {
-                // --- ĐƠN HÀNG ---
+            switch ($this->topic) {
                 case 'orders/create':
-                    $this->handleOrderCreate($payload, $orgId);
+                    $this->handleOrderCreate($this->payload, $this->orgId);
                     break;
                 case 'orders/updated':
                 case 'orders/paid':
-                    $this->handleOrderUpdate($payload, $orgId);
+                    $this->handleOrderUpdate($this->payload, $this->orgId);
                     break;
                 case 'orders/cancelled':
-                    $this->handleOrderCancelled($payload, $orgId);
+                    $this->handleOrderCancelled($this->payload, $this->orgId);
                     break;
-                case 'orders/fulfilled':
-                    $this->handleOrderFulfilled($payload, $orgId);
-                    break;
-                case 'orders/delete':
-                    $this->handleOrderDelete($payload, $orgId);
-                    break;
-
-                // --- KHÁCH HÀNG ---
                 case 'customers/create':
                 case 'customers/update':
-                    $this->handleCustomerUpsert($payload, $orgId);
+                    $this->handleCustomerUpsert($this->payload, $this->orgId);
                     break;
-                case 'customers/enable':
-                case 'customers/disable':
-                    $this->handleCustomerStatus($payload, $orgId, $topic);
-                    break;
-                case 'customers/delete':
-                    $this->handleCustomerDelete($payload, $orgId);
-                    break;
-
-                // --- SẢN PHẨM & APP ---
                 case 'products/update':
-                    $this->handleProductUpdate($payload, $orgId);
+                    $this->handleProductUpdate($this->payload, $this->orgId);
                     break;
                 case 'products/delete':
-                    $this->handleProductDelete($payload, $orgId);
+                    $this->handleProductDelete($this->payload, $this->orgId);
                     break;
                 case 'app/uninstalled':
-                    $this->handleAppUninstalled($orgId);
+                    $this->handleAppUninstalled($this->orgId);
                     break;
             }
-            $this->writeLog($topic, $orgId, 'success');
+            $this->writeLog($this->topic, $this->orgId, 'success');
         } catch (\Throwable $e) {
-            $this->writeLog($topic, $orgId, 'error', 'Logic error: ' . $e->getMessage());
+            $this->writeLog($this->topic, $this->orgId, 'error', 'Job Error: ' . $e->getMessage());
         }
+    }
+
+    // =========================================================================
+    // DÁN TOÀN BỘ CÁC HÀM PRIVATE TỪ CONTROLLER SANG ĐÂY
+    // (handleOrderCreate, handleOrderUpdate, getOrCreateService, upsertCustomer, mapStatus...)
+    // Lưu ý: Nhớ copy cả hàm mapPayment, mapStatus, uuid(), writeLog() nhé!
+    // =========================================================================
     
-        exit;
-    }
-
-    // ==========================================================
-    // PUBLIC — Debug (test only)
-    // ==========================================================
-
-    public function handleDebug(): void
-    {
-        $rawBody = file_get_contents('php://input');
-        $payload = json_decode($rawBody, true);
-
-        if (!$payload) {
-            echo json_encode(['error' => 'Invalid JSON']);
-            exit;
-        }
-
-        $haravanOrgId = (string)($payload['org_id'] ?? '');
-        $log          = [];
-
-        // Step 1: Check organization (slug → internal UUID)
-        $orgRow = app()->db->get('organizations', ['id', 'name', 'slug'], [
-            'OR' => ['id' => $haravanOrgId, 'slug' => $haravanOrgId]
-        ]);
-        $log['step1_organization']  = $orgRow ?: 'NOT FOUND';
-        $log['step1_haravan_orgid'] = $haravanOrgId;
-
-        if (!$orgRow) {
-            $log['step1_error'] = 'Organization không tồn tại — cần tạo org với slug = ' . $haravanOrgId;
-            echo json_encode(['debug' => $log], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
-            exit;
-        }
-
-        $orgId = $orgRow['id']; // internal UUID
-
-        // Step 2: Check branches
-        $log['step2_internal_orgid'] = $orgId;
-        $log['step2_all_branches']   = app()->db->select('branches', ['id', 'name', 'is_active'], [
-            'organization_id' => $orgId
-        ]) ?: 'NOT FOUND';
-
-        $branchRow = app()->db->get('branches', ['id'], [
-            'organization_id' => $orgId,
-            'is_active'       => 1
-        ]);
-        $log['step2_active_branch'] = $branchRow ?: 'NOT FOUND — handleOrderCreate sẽ return sớm ở đây';
-
-        if (!$branchRow) {
-            echo json_encode(['debug' => $log], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
-            exit;
-        }
-        $branchId = $branchRow['id'];
-
-        // Step 3: Check duplicate invoice
-        $existing = app()->db->get('invoices', ['id'], [
-            'invoice_no'      => (string)($payload['id'] ?? ''),
-            'organization_id' => $orgId,
-        ]);
-        $log['step3_duplicate_invoice'] = $existing ?: 'OK — không duplicate';
-
-        if ($existing) {
-            echo json_encode(['debug' => $log], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
-            exit;
-        }
-
-        // Step 4: Thử insert invoice
-        $invoiceId = $this->uuid();
-        try {
-            app()->db->insert('invoices', [
-                'id'              => $invoiceId,
-                'organization_id' => $orgId,
-                'source'             => $payload['source_name'] ?? 'web',
-                'external_id'        => $payload['id'],           // Ví dụ: 1791323925
-                'branch_id'       => $branchId,
-                'customer_id'     => null,
-                'staff_id'        => null,
-                'fulfillment_status' => $payload['fulfillment_status'] ?? 'restocking',
-                'invoice_no'      => (string)($payload['id'] ?? 'TEST'),
-                'subtotal'        => (float)($payload['subtotal_price']  ?? 0),
-                'discount'        => (float)($payload['total_discounts'] ?? 0),
-                'total'           => (float)($payload['total_price']     ?? 0),
-                'payment_method'  => $this->mapPayment($payload['payment_gateway'] ?? ''),
-                'status'          => $this->mapStatus($payload['financial_status'] ?? ''),
-                'invoice_date'    => $payload['created_at'] ?? date('Y-m-d H:i:s'),
-                'created_at'      => date('Y-m-d H:i:s'),
-            ]);
-            $log['step4_invoice_insert'] = 'SUCCESS — id: ' . $invoiceId;
-        } catch (\Throwable $e) {
-            $log['step4_exception'] = $e->getMessage();
-        }
-
-        // Step 5: Verify
-        $log['step5_verify_insert'] = app()->db->get('invoices', ['id', 'invoice_no', 'total'], [
-            'id' => $invoiceId
-        ]) ?: 'KHÔNG TÌM THẤY SAU KHI INSERT';
-
-        echo json_encode(['debug' => $log], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
-        exit;
-    }
-
-    // ==========================================================
-    // PUBLIC — Subscribe / Unsubscribe / Logs
-    // ==========================================================
-
-    public function subscribe(): void
-    {
-        $accessToken = $_POST['access_token'] ?? '';
-        if (!$accessToken) {
-            echo json_encode(['error' => 'access_token required']);
-            exit;
-        }
-        echo json_encode($this->callHaravanApi('POST', 'https://webhook.haravan.com/api/subscribe', $accessToken));
-        exit;
-    }
-
-    public function getSubscribed(): void
-    {
-        $accessToken = $_GET['access_token'] ?? '';
-        echo json_encode($this->callHaravanApi('GET', 'https://webhook.haravan.com/api/subscribe', $accessToken));
-        exit;
-    }
-
-    public function unsubscribe(): void
-    {
-        $accessToken = $_POST['access_token'] ?? '';
-        echo json_encode($this->callHaravanApi('DELETE', 'https://webhook.haravan.com/api/subscribe', $accessToken));
-        exit;
-    }
-
-    public function logs(): void
-    {
-        $logFile = __DIR__ . '/../../logs/haravan_webhook.log';
-        if (!file_exists($logFile)) {
-            echo json_encode(['logs' => []]);
-            exit;
-        }
-        $lines = array_slice(file($logFile), -50);
-        echo json_encode(['logs' => array_reverse($lines)]);
-        exit;
-    }
-
     // ==========================================================
     // PRIVATE — Xử lý từng event
     // ==========================================================
@@ -636,77 +385,6 @@ class HaravanWebhookController
         app()->db->update('integrations', ['is_active' => 0], [
             'organization_id' => $orgId,
             'type'            => 'pos_haravan',
-        ]);
-    }
-    
-    // ==========================================================
-    // CÁC HÀM BỔ SUNG CHO ĐƠN HÀNG
-    // ==========================================================
-
-    private function handleOrderFulfilled(array $data, string $orgId): void
-    {
-        // Khi đơn hàng được giao thành công, chỉ cần cập nhật trạng thái vận chuyển
-        app()->db->update('invoices', [
-            'fulfillment_status' => 'fulfilled',
-            'updated_at'         => date('Y-m-d H:i:s')
-        ], [
-            'invoice_no'      => (string)($data['id'] ?? ''),
-            'organization_id' => $orgId
-        ]);
-    }
-
-    private function handleOrderDelete(array $data, string $orgId): void
-    {
-        $invoiceNo = (string)($data['id'] ?? '');
-        if (!$invoiceNo) return;
-
-        $invoice = app()->db->get('invoices', ['id'], [
-            'invoice_no'      => $invoiceNo,
-            'organization_id' => $orgId
-        ]);
-
-        if ($invoice) {
-            // Xóa các món trong hóa đơn trước để tránh rác dữ liệu
-            app()->db->delete('invoice_items', ['invoice_id' => $invoice['id']]);
-            // Xóa hóa đơn chính
-            app()->db->delete('invoices', ['id' => $invoice['id']]);
-        }
-    }
-
-    // ==========================================================
-    // CÁC HÀM BỔ SUNG CHO KHÁCH HÀNG
-    // ==========================================================
-
-    private function handleCustomerStatus(array $data, string $orgId, string $topic): void
-    {
-        $haravanCustId = $data['id'] ?? null;
-        if (!$haravanCustId) return;
-
-        // Bật/tắt trạng thái (Giả định bảng customers của bạn có cột is_active)
-        $isActive = ($topic === 'customers/enable') ? 1 : 0;
-
-        app()->db->update('customers', [
-            'is_active'  => $isActive,
-            'updated_at' => date('Y-m-d H:i:s')
-        ], [
-            'haravan_customer_id' => $haravanCustId,
-            'organization_id'     => $orgId
-        ]);
-    }
-
-    private function handleCustomerDelete(array $data, string $orgId): void
-    {
-        $haravanCustId = $data['id'] ?? null;
-        if (!$haravanCustId) return;
-
-        // Khuyên dùng "Xóa mềm" (Soft delete) thay vì xóa cứng (DELETE) 
-        // để không làm hỏng dữ liệu các hóa đơn cũ mà khách này từng mua.
-        app()->db->update('customers', [
-            'is_active'  => 0,
-            'updated_at' => date('Y-m-d H:i:s')
-        ], [
-            'haravan_customer_id' => $haravanCustId,
-            'organization_id'     => $orgId
         ]);
     }
 
