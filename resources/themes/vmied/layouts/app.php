@@ -298,11 +298,11 @@
             <!-- DỮ LIỆU -->
             <div class="nav-section-header">Dữ liệu</div>
 
-            <a href="#" class="nav-link-custom">
+            <a href="/business/invoices" class="nav-link-custom">
                 <i class="bi bi-receipt icon-main"></i>
                 <span class="ms-2">Hóa đơn</span>
             </a>
-            <a href="#" class="nav-link-custom">
+            <a href="/business/customers" class="nav-link-custom">
                 <i class="bi bi-person-lines-fill icon-main"></i>
                 <span class="ms-2">Khách hàng</span>
             </a>
@@ -310,7 +310,7 @@
                 <i class="bi bi-clock icon-main"></i>
                 <span class="ms-2">Lịch hẹn</span>
             </a>
-            <a href="#" class="nav-link-custom">
+            <a href="/business/expenses" class="nav-link-custom">
                 <i class="bi bi-graph-up icon-main"></i>
                 <span class="ms-2">Chi phí</span>
             </a>
@@ -322,7 +322,7 @@
                 <i class="bi bi-clock-history icon-main"></i>
                 <span class="ms-2">Tài chính</span>
             </a>
-            <a href="#" class="nav-link-custom">
+            <a href="/reports/customers" class="nav-link-custom">
                 <i class="bi bi-bar-chart-line icon-main"></i>
                 <span class="ms-2 flex-grow-1">Khách hàng</span>
                 <span class="badge-rfm">RFM</span>

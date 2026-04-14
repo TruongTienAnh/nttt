@@ -338,34 +338,48 @@ class HaravanWebhookController
             $staffId = $staffRow['id'] ?? null;
         }
 
-        // Tránh duplicate
-        $exists = app()->db->get('invoices', ['id'], [
-            'invoice_no'      => (string)$data['id'],
-            'organization_id' => $orgId,
-        ]);
-        if ($exists) return;
-
-        // Insert invoice
         $invoiceId = $this->uuid();
-        app()->db->insert('invoices', [
-            'id'              => $invoiceId,
-            'organization_id' => $orgId,
-            'branch_id'       => $branchId,
-            'customer_id'     => $customerId,
-            'staff_id'        => $staffId,
-            'invoice_no'      => (string)$data['id'],
-            'subtotal'        => (float)($data['subtotal_price']  ?? 0),
-            'discount'        => (float)($data['total_discounts'] ?? 0),
-            'total'           => (float)($data['total_price']     ?? 0),
-            'payment_method'  => $this->mapPayment($data['payment_gateway'] ?? ''),
-            'status'          => $this->mapStatus($data['financial_status'] ?? ''),
-            'invoice_date'    => $data['created_at'] ?? date('Y-m-d H:i:s'),
-            'created_at'      => date('Y-m-d H:i:s'),
-            'source'          => $data['source_name'] ?? 'web',
-            'fulfillment_status' => $data['fulfillment_status'] ?? 'restocking',
-            'external_id'        => $data['id'],           // Ví dụ: 1791323925
-        ]);
 
+        try {
+            app()->db->insert('invoices', [
+                'id'              => $invoiceId,
+                'organization_id' => $orgId,
+                'branch_id'       => $branchId,
+                'customer_id'     => $customerId,
+                'staff_id'        => $staffId,
+                'invoice_no'      => (string)$data['id'],
+                'subtotal'        => (float)($data['subtotal_price']  ?? 0),
+                'discount'        => (float)($data['total_discounts'] ?? 0),
+                'total'           => (float)($data['total_price']     ?? 0),
+                'payment_method'  => $this->mapPayment($data['payment_gateway'] ?? ''),
+                'status'          => $this->mapStatus($data['financial_status'] ?? ''),
+                'invoice_date'    => (new \DateTime($data['created_at']))
+                                    ->setTimezone(new \DateTimeZone('Asia/Ho_Chi_Minh'))
+                                    ->format('Y-m-d H:i:s'),
+                'created_at'      => date('Y-m-d H:i:s'),
+                'source'          => $data['source_name'] ?? 'web',
+                'fulfillment_status' => $data['fulfillment_status'] ?? 'restocking',
+                'external_id'        => $data['id'],
+            ]);
+        
+        } catch (\Throwable $e) {
+
+            // 🔥 check duplicate bằng message (an toàn hơn code)
+            if (strpos($e->getMessage(), 'Duplicate entry') !== false) {
+        
+                $invoice = app()->db->get('invoices', ['id'], [
+                    'invoice_no'      => (string)$data['id'],
+                    'organization_id' => $orgId,
+                ]);
+        
+                $invoiceId = $invoice['id'] ?? null;
+        
+                if (!$invoiceId) return;
+        
+            } else {
+                throw $e;
+            }
+        }
         // Insert line items
         foreach ($data['line_items'] ?? [] as $item) {
             $sku = $item['sku'] ?? '';
@@ -408,6 +422,15 @@ class HaravanWebhookController
                 'total'      => $qty * $price,
             ]);
         }
+        $dir = __DIR__ . '/../../logs';
+        file_put_contents(
+            $dir . '/webhooktefast.log',
+            json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
+            . PHP_EOL
+            . "==================== END ====================" 
+            . PHP_EOL,
+            FILE_APPEND | LOCK_EX
+        );
     }
     
     private function handleProductDelete(array $data, string $orgId): void
@@ -591,6 +614,7 @@ class HaravanWebhookController
                 'haravan_customer_id' => $haravanCustId, // Cập nhật ID để lần sau tìm nhanh hơn
                 'full_name'  => $fullName,
                 'email'      => $email, // Có thể null
+                'tags'       => $c['tags'] ?? "",
                 'phone'      => $phone, // Có thể null
                 'updated_at' => date('Y-m-d H:i:s'),
             ], ['id' => $existing['id']]);
@@ -608,6 +632,7 @@ class HaravanWebhookController
             'full_name'           => $fullName,
             'phone'               => $phone,
             'email'               => $email,
+            'tags'                => $c['tags'] ?? "",
             'source'              => 'haravan',
             'created_at'          => date('Y-m-d H:i:s'),
         ]);

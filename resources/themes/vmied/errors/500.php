@@ -1,4 +1,4 @@
-<?php $this->extend('layouts/master') ?>
+<?php $this->extend('layouts/app') ?>
 
 <?php $this->section('content') ?>
 <div class="min-h-[50vh] flex flex-col items-center justify-center text-center">
