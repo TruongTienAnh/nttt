@@ -25,6 +25,19 @@
     <label class="form-label fw-bold small text-secondary">Ghi chú</label>
     <textarea id="edit-note" class="form-control rounded-3" rows="2"><?= htmlspecialchars($expense['note']) ?></textarea>
 </div>
+<?php if (isset($currentBranchId) && $currentBranchId === 'all'): ?>
+<div class="mb-3">
+    <label class="form-label fw-bold small text-secondary">Thuộc chi nhánh</label>
+    <select id="edit-branch" class="form-select rounded-3 border-primary shadow-sm">
+        <option value="">-- Chi phí chung Tổng công ty --</option>
+        <?php foreach($branches as $b): ?>
+            <option value="<?= $b['id'] ?>" <?= ($expense['branch_id'] == $b['id']) ? 'selected' : '' ?>>
+                <?= htmlspecialchars($b['name']) ?>
+            </option>
+        <?php endforeach; ?>
+    </select>
+</div>
+<?php endif; ?>
 <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
     <button class="btn btn-light rounded-3 px-4" data-bs-dismiss="modal">Hủy</button>
     <button class="btn btn-primary rounded-3 px-4 fw-bold" onclick="submitEdit(<?= $expense['id'] ?>)">Cập nhật</button>
@@ -41,6 +54,7 @@ function submitEdit(id) {
             amount: document.getElementById('edit-amount').value,
             expense_date: document.getElementById('edit-date').value,
             note: document.getElementById('edit-note').value,
+            branch_id: document.getElementById('edit-branch') ? document.getElementById('edit-branch').value : ''
         })
     }).then(r => r.json()).then(data => {
         if (data.status === 'success') location.reload();

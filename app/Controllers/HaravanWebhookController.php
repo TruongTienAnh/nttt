@@ -314,21 +314,57 @@ class HaravanWebhookController
 
     private function handleOrderCreate(array $data, string $orgId): void
     {
-        // Lấy branch
+        // --- BƯỚC 1: XÁC ĐỊNH ĐÚNG CHI NHÁNH TỪ HARAVAN ---
+        $haravanBranchName = null;
+    
+        // Ưu tiên 1: Lấy chi nhánh từ note_attributes (chuẩn nhất cho các đơn bán Đa kênh/POS)
+        if (!empty($data['note_attributes'])) {
+            foreach ($data['note_attributes'] as $attr) {
+                if ($attr['name'] === 'X-Haravan-SalesChannel-BranchName') {
+                    $haravanBranchName = $attr['value'];
+                    break;
+                }
+            }
+        }
+    
+        // Ưu tiên 2: Nếu không có trong note, lấy từ location_name (Kho xuất hàng)
+        if (!$haravanBranchName && !empty($data['location_name'])) {
+            $haravanBranchName = $data['location_name'];
+        }
+    
+        // Ưu tiên 3: Nếu đơn mồ côi không có kho, gán vào kho Mặc định
+        if (!$haravanBranchName) {
+            $haravanBranchName = 'Kho Haravan Mặc Định';
+        }
+    
+        // --- BƯỚC 2: TÌM HOẶC TẠO MỚI CHI NHÁNH TRONG DATABASE ---
         $branchRow = app()->db->get('branches', ['id'], [
             'organization_id' => $orgId,
-            'is_active'       => 1
+            'name'            => $haravanBranchName
         ]);
-        if (!$branchRow) return;
-        $branchId = $branchRow['id'];
-
-        // Upsert customer
+    
+        if ($branchRow) {
+            $branchId = $branchRow['id'];
+        } else {
+            // Tự động thêm chi nhánh mới vào DB nếu chưa tồn tại
+            app()->db->insert('branches', [
+                'organization_id' => $orgId,
+                'name'            => $haravanBranchName,
+                'type'            => 'retail', // Mặc định là bán lẻ
+                'is_active'       => 1,
+                'created_at'      => date('Y-m-d H:i:s'),
+                'updated_at'      => date('Y-m-d H:i:s')
+            ]);
+            $branchId = app()->db->id(); // Lấy ID Auto_increment vừa tạo
+        }
+    
+        // --- BƯỚC 3: UPSERT KHÁCH HÀNG (Gán khách hàng vào chi nhánh họ mua) ---
         $customerId = null;
         if (!empty($data['customer'])) {
             $customerId = $this->upsertCustomer($data['customer'], $orgId, $branchId);
         }
-
-        // Tìm staff
+    
+        // Tìm staff (Giữ nguyên)
         $staffId = null;
         if (!empty($data['staff_email'])) {
             $staffRow = app()->db->get('users', ['id'], [
@@ -512,6 +548,16 @@ class HaravanWebhookController
                 'total'      => $qty * $price,
             ]);
         }
+        
+        $dir = __DIR__ . '/../../logs';
+        file_put_contents(
+            $dir . '/webhookpaidinvoices.log',
+            json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
+            . PHP_EOL
+            . "==================== END ====================" 
+            . PHP_EOL,
+            FILE_APPEND | LOCK_EX
+        );
     }
     
     // Hàm bổ trợ để xử lý việc bảng services bị rỗng
@@ -565,6 +611,15 @@ class HaravanWebhookController
         if ($branchRow) {
             $this->upsertCustomer($data, $orgId, $branchRow['id']);
         }
+        $dir = __DIR__ . '/../../logs';
+        file_put_contents(
+            $dir . '/webhookcustomer.log',
+            json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
+            . PHP_EOL
+            . "==================== END ====================" 
+            . PHP_EOL,
+            FILE_APPEND | LOCK_EX
+        );
     }
 
     private function upsertCustomer(array $c, string $orgId, string $branchId): ?string
@@ -678,6 +733,15 @@ class HaravanWebhookController
             'invoice_no'      => (string)($data['id'] ?? ''),
             'organization_id' => $orgId
         ]);
+        $dir = __DIR__ . '/../../logs';
+        file_put_contents(
+            $dir . '/webhooktfilled.log',
+            json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
+            . PHP_EOL
+            . "==================== END ====================" 
+            . PHP_EOL,
+            FILE_APPEND | LOCK_EX
+        );
     }
 
     private function handleOrderDelete(array $data, string $orgId): void

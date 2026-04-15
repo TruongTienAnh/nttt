@@ -228,31 +228,102 @@
         
         <!-- Workspace Switcher -->
         <div class="px-3 pt-4 pb-2">
+            <?php
+                // 1. Lấy thông tin từ Session
+                $orgId = $_SESSION['organization_id'] ?? "e027cf6e-538d-4257-9691-068b36e280f8";
+                $currentBranchId = $_SESSION['current_branch_id'] ?? 'all';
+                $branches = [];
+                
+                // 2. Truy vấn lấy danh sách chi nhánh (chưa bị xóa)
+                if ($orgId) {
+                    $branches = app()->db->select('branches', '*', [
+                        'organization_id' => $orgId,
+                        'deleted' => 0, 
+                        'ORDER' => ['id' => 'ASC']
+                    ]);
+                }
+
+                // 3. Xác định tên và Avatar hiển thị
+                $displayBranchName = 'Tất cả chi nhánh';
+                $displayInitial = 'A';
+
+                if ($currentBranchId !== 'all' && !empty($branches)) {
+                    foreach ($branches as $b) {
+                        if ($b['id'] == $currentBranchId) {
+                            $displayBranchName = $b['name'];
+                            $displayInitial = mb_substr($displayBranchName, 0, 1, 'UTF-8');
+                            break;
+                        }
+                    }
+                }
+            ?>
+
             <div class="dropdown">
                 <div class="workspace-btn d-flex align-items-center justify-content-between cursor-pointer dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
                     <div class="d-flex align-items-center gap-3">
-                        <div class="workspace-avatar">G</div>
+                        <div class="workspace-avatar text-uppercase bg-primary text-white d-flex align-items-center justify-content-center">
+                            <?= ($currentBranchId === 'all') ? '<i class="bi bi-buildings"></i>' : htmlspecialchars($displayInitial) ?>
+                        </div>
                         <div class="d-flex flex-column lh-1">
-                            <span class="fw-semibold fs-7 text-body">Gun Shop</span>
-                            <span class="fs-8 text-secondary mt-1">Premium Plan</span>
+                            <span class="fw-semibold fs-7 text-body text-truncate" style="max-width: 130px;" title="<?= htmlspecialchars($displayBranchName) ?>">
+                                <?= htmlspecialchars($displayBranchName) ?>
+                            </span>
+                            <span class="fs-8 text-secondary mt-1">Chi nhánh</span>
                         </div>
                     </div>
                     <i class="bi bi-chevron-expand text-secondary fs-7 opacity-75"></i>
                 </div>
                 
                 <ul class="dropdown-menu dropdown-menu-solid w-100 mt-2">
-                    <li><h6 class="dropdown-header fs-8 text-uppercase opacity-75 fw-semibold">Switch Workspace</h6></li>
+                    <li><h6 class="dropdown-header fs-8 text-uppercase opacity-75 fw-semibold">Chuyển chi nhánh</h6></li>
+                    
                     <li>
-                        <a class="dropdown-item fs-7 py-2 d-flex align-items-center rounded mx-1 px-2 mb-1" style="background-color: var(--eclo-hover-bg);" href="#">
-                            <div class="workspace-avatar me-3" style="width: 20px; height: 20px; font-size: 0.6rem;">S</div> 
-                            <span class="fw-semibold">Gun Shop</span>
-                            <i class="bi bi-check2 ms-auto text-accent fs-6"></i>
+                        <a class="dropdown-item fs-7 py-2 d-flex align-items-center rounded mx-1 px-2 mb-1" 
+                        style="<?= ($currentBranchId === 'all') ? 'background-color: var(--eclo-hover-bg);' : '' ?>" 
+                        href="?switch_branch=all">
+                            <div class="workspace-avatar me-3 bg-primary text-white d-flex align-items-center justify-content-center" style="width: 20px; height: 20px; font-size: 0.7rem;">
+                                <i class="bi bi-buildings"></i>
+                            </div> 
+                            <span class="fw-semibold">Tất cả chi nhánh</span>
+                            <?php if ($currentBranchId === 'all'): ?>
+                                <i class="bi bi-check2 ms-auto text-accent fs-6"></i>
+                            <?php endif; ?>
                         </a>
                     </li>
+
+                    <li><hr class="dropdown-divider border-secondary-subtle opacity-50 my-2"></li>
+
+                    <div style="max-height: 260px; overflow-y: auto;" class="custom-scrollbar">
+                        <?php if (empty($branches)): ?>
+                            <li><span class="dropdown-item fs-8 text-muted px-3">Chưa có dữ liệu</span></li>
+                        <?php else: ?>
+                            <?php foreach ($branches as $b): ?>
+                                <?php 
+                                    $isActive = ($currentBranchId != 'all' && $b['id'] == $currentBranchId);
+                                ?>
+                                <li>
+                                    <a class="dropdown-item fs-7 py-2 d-flex align-items-center rounded mx-1 px-2 mb-1" 
+                                    style="<?= $isActive ? 'background-color: var(--eclo-hover-bg);' : '' ?>" 
+                                    href="?switch_branch=<?= $b['id'] ?>">
+                                        <div class="workspace-avatar me-3 text-uppercase d-flex align-items-center justify-content-center" style="width: 20px; height: 20px; font-size: 0.6rem;">
+                                            <?= mb_substr($b['name'], 0, 1, 'UTF-8') ?>
+                                        </div> 
+                                        <span class="fw-semibold text-truncate" style="max-width: 120px;" title="<?= htmlspecialchars($b['name']) ?>">
+                                            <?= htmlspecialchars($b['name']) ?>
+                                        </span>
+                                        <?php if ($isActive): ?>
+                                            <i class="bi bi-check2 ms-auto text-accent fs-6"></i>
+                                        <?php endif; ?>
+                                    </a>
+                                </li>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </div>
+
                     <li><hr class="dropdown-divider border-secondary-subtle opacity-50 my-2"></li>
                     <li>
-                        <a class="dropdown-item fs-7 py-2 d-flex align-items-center rounded mx-1 px-2 text-secondary m-0" href="#">
-                            <i class="bi bi-plus-circle me-3"></i> Thêm Workspace
+                        <a class="dropdown-item fs-7 py-2 d-flex align-items-center rounded mx-1 px-2 text-secondary m-0" href="/config/brands">
+                            <i class="bi bi-plus-circle me-3"></i> Quản lý Chi nhánh
                         </a>
                     </li>
                 </ul>
@@ -316,21 +387,22 @@
             </a>
 
             <!-- BÁO CÁO -->
-            <div class="nav-section-header">Báo cáo</div>
+            <div class="nav-section-header">Báo cáo Khách hàng</div>
+            <a href="/reports/customers/rfm" class="nav-link-custom <?= strpos($_SERVER['REQUEST_URI'], '/reports/customers/rfm') === 0 ? 'active' : '' ?>"><i class="bi bi-people icon-main"></i> Phân khúc RFM</a>
+            <a href="/reports/customers/churn" class="nav-link-custom <?= strpos($_SERVER['REQUEST_URI'], '/reports/customers/churn') === 0 ? 'active' : '' ?>"><i class="bi bi-heart-pulse icon-main"></i> Vòng đời & Churn</a>
+            <a href="/reports/customers/cross-sell" class="nav-link-custom <?= strpos($_SERVER['REQUEST_URI'], '/reports/customers/cross-sell') === 0 ? 'active' : '' ?>"><i class="bi bi-cart-plus icon-main"></i> Bán chéo (Cross-sell)</a>
 
-            <a href="#" class="nav-link-custom">
-                <i class="bi bi-clock-history icon-main"></i>
-                <span class="ms-2">Tài chính</span>
-            </a>
-            <a href="/reports/customers" class="nav-link-custom">
-                <i class="bi bi-bar-chart-line icon-main"></i>
-                <span class="ms-2 flex-grow-1">Khách hàng</span>
-                <span class="badge-rfm">RFM</span>
-            </a>
-            <a href="#" class="nav-link-custom">
-                <i class="bi bi-file-earmark-text icon-main"></i>
-                <span class="ms-2">Vận hành</span>
-            </a>
+            <div class="nav-section-header">Tài chính Chiến lược</div>
+            <a href="/reports/finance/net-profit" class="nav-link-custom <?= strpos($_SERVER['REQUEST_URI'], '/reports/finance/net-profit') === 0 ? 'active' : '' ?>"><i class="bi bi-wallet2 icon-main"></i> Lợi nhuận ròng</a>
+            <a href="/reports/finance/break-even" class="nav-link-custom <?= strpos($_SERVER['REQUEST_URI'], '/reports/finance/break-even') === 0 ? 'active' : '' ?>"><i class="bi bi-water icon-main"></i> Điểm hòa vốn</a>
+            <a href="/reports/finance/forecast" class="nav-link-custom <?= strpos($_SERVER['REQUEST_URI'], '/reports/finance/forecast') === 0 ? 'active' : '' ?>"><i class="bi bi-crystal-ball icon-main"></i> Dự báo doanh thu</a>
+            <a href="/reports/finance/roi" class="nav-link-custom <?= strpos($_SERVER['REQUEST_URI'], '/reports/finance/roi') === 0 ? 'active' : '' ?>"><i class="bi bi-piggy-bank icon-main"></i> Hiệu quả rót vốn</a>
+            <a href="/reports/finance/location-pnl" class="nav-link-custom <?= strpos($_SERVER['REQUEST_URI'], '/reports/finance/location-pnl') === 0 ? 'active' : '' ?>"><i class="bi bi-trophy icon-main"></i> So sánh chi nhánh</a>
+
+            <div class="nav-section-header">Hệ thống Cảnh báo</div>
+            <a href="/alerts/cost-risk" class="nav-link-custom <?= strpos($_SERVER['REQUEST_URI'], '/alerts/cost-risk') === 0 ? 'active' : '' ?>"><i class="bi bi-exclamation-octagon icon-main text-warning"></i> Rủi ro chi phí</a>
+            <a href="/alerts/loss-risk" class="nav-link-custom <?= strpos($_SERVER['REQUEST_URI'], '/alerts/loss-risk') === 0 ? 'active' : '' ?>"><i class="bi bi-eye-slash icon-main text-info"></i> Rủi ro thất thoát</a>
+            <a href="/alerts/red-alert" class="nav-link-custom <?= strpos($_SERVER['REQUEST_URI'], '/alerts/red-alert') === 0 ? 'active' : '' ?>"><i class="bi bi-megaphone icon-main text-danger"></i> Báo động đỏ</a>
 
             <!-- HỆ THỐNG -->
             <div class="nav-section-header">Hệ thống</div>

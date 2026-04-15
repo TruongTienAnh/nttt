@@ -1,56 +1,56 @@
 <?php
 namespace App\Controllers;
 
-class InvoiceBusinessController
+class InvoiceBusinessController extends BaseController
 {
     public function Index()
     {
-        $orgId = $_SESSION['organization_id'] ?? "e027cf6e-538d-4257-9691-068b36e280f8";
-        
-        // CHỈ LẤY CÁC CỘT CHẮC CHẮN CÓ ĐỂ TRÁNH LỖI (id, date, total)
-        $invoices = app()->db->select('invoices', 
+        // Truyền thêm chữ 'invoices' để hàm tự động sinh ra 'invoices.organization_id'
+        $where = $this->branchFilter([
+            'ORDER' => ['invoices.invoice_date' => 'DESC']
+        ], 'invoices');
+
+        $invoices = $this->db->select('invoices', 
             ['[>]customers' => ['customer_id' => 'id']], 
             [
                 'invoices.id', 
                 'invoices.invoice_date', 
                 'invoices.total', 
+                'invoices.invoice_no',
+                'invoices.status',
+                'invoices.payment_method',
+                'invoices.source',
                 'customers.full_name', 
                 'customers.phone'
             ], 
-            [
-                'invoices.organization_id' => $orgId,
-                'ORDER' => ['invoices.invoice_date' => 'DESC']
-            ]
+            $where
         );
+
         return view('business/invoice', ['invoices' => $invoices]);
     }
 
     public function Show($id)
     {
-        $orgId = $_SESSION['organization_id'] ?? "e027cf6e-538d-4257-9691-068b36e280f8";
+        // Nếu câu get bình thường không dùng JOIN thì không cần prefix
+        $where = $this->branchFilter(['id' => $id]);
         
-        // CHIẾN THUẬT MỚI: Dùng SELECT * cho từng bảng độc lập, dập tắt mọi lỗi SQL
-        $invoice = app()->db->get('invoices', '*', [
-            'id' => $id,
-            'organization_id' => $orgId
-        ]);
+        $invoice = $this->db->get('invoices', '*', $where);
 
-        if (!$invoice) return "<div class='p-3 text-danger'>Không tìm thấy hóa đơn.</div>";
-
-        // Lấy thông tin khách hàng nếu có
-        $customer = [];
-        if (!empty($invoice['customer_id'])) {
-            $customer = app()->db->get('customers', '*', ['id' => $invoice['customer_id']]);
+        if (!$invoice) {
+            return "<div class='p-4 text-center text-danger fw-bold'>Không tìm thấy hóa đơn.</div>";
         }
 
-        // Lấy chi tiết sản phẩm
-        $items = app()->db->select('invoice_items', '*', ['invoice_id' => $id]);
+        $customer = [];
+        if (!empty($invoice['customer_id'])) {
+            $customer = $this->db->get('customers', '*', ['id' => $invoice['customer_id']]);
+        }
 
-        // Trả về view với 3 biến riêng biệt
+        $items = $this->db->select('invoice_items', '*', ['invoice_id' => $id]);
+
         return view('business/invoice-view', [
-            'invoice' => $invoice, 
+            'invoice'  => $invoice, 
             'customer' => $customer, 
-            'items' => $items
+            'items'    => $items
         ]);
     }
 }

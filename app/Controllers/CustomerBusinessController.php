@@ -1,16 +1,32 @@
 <?php
 namespace App\Controllers;
 
-class CustomerBusinessController
+class CustomerBusinessController extends BaseController
 {
     public function Index()
     {
-        $orgId = $_SESSION['organization_id'] ?? "e027cf6e-538d-4257-9691-068b36e280f8";
-        $customers = app()->db->select('customers', '*', [
-            'organization_id' => $orgId,
-            'ORDER' => ['id' => 'DESC']
+        // 1. Tự động lọc danh sách khách theo chi nhánh
+        $where = $this->branchFilter([
+            'ORDER' => ['created_at' => 'DESC']
         ]);
-        return view('business/customer', ['customers' => $customers]);
+        
+        $customers = $this->db->select('customers', '*', $where);
+
+        // 2. Tính toán các chỉ số (Tổng khách, Khách mới tháng này) theo đúng chi nhánh
+        $totalCustomers = $this->db->count('customers', $this->branchFilter());
+        
+        $currentMonth = date('Y-m');
+        $whereNew = $this->branchFilter([
+            'created_at[~]' => $currentMonth . '%' // Tìm những ngày tạo chứa "YYYY-MM"
+        ]);
+        $newCustomers = $this->db->count('customers', $whereNew);
+
+        // 3. Trả về view
+        return view('business/customer', [
+            'customers'      => $customers,
+            'totalCustomers' => $totalCustomers,
+            'newCustomers'   => $newCustomers
+        ]);
     }
 
     public function Show($id)

@@ -63,6 +63,7 @@
                         <th class="px-4 py-3">Hạng mục</th>
                         <th class="px-4 py-3">Tên khoản chi</th>
                         <th class="px-4 py-3 text-end">Số tiền</th>
+                        <th class="px-4 py-3">Chi nhánh</th>
                         <th class="px-4 py-3">Ghi chú</th>
                         <th class="px-4 py-3 text-end">Thao tác</th>
                     </tr>
@@ -89,6 +90,7 @@
                         </td>
                         <td class="px-4 py-3 fw-semibold text-dark"><?= htmlspecialchars($e['title']) ?></td>
                         <td class="px-4 py-3 text-end fw-bold text-danger">-<?= number_format($e['amount']) ?> ₫</td>
+                        <td class="px-4 py-3"><?= $e['branch_name'] ? htmlspecialchars($e['branch_name']) : '<span class="text-secondary">Chi phí chung</span>' ?></td>
                         <td class="px-4 py-3 text-secondary small text-truncate" style="max-width: 150px;"><?= htmlspecialchars($e['note']) ?></td>
                         <td class="px-4 py-3 text-end">
                             <div class="d-flex align-items-center justify-content-end gap-2">
@@ -149,6 +151,17 @@
                     <label class="form-label fw-bold small text-secondary">Ghi chú</label>
                     <textarea id="add-note" class="form-control rounded-3" rows="2" placeholder="Ghi chú thêm..."></textarea>
                 </div>
+                <?php if (isset($currentBranchId) && $currentBranchId === 'all'): ?>
+                <div class="mb-3">
+                    <label class="form-label fw-bold small text-secondary">Thuộc chi nhánh</label>
+                    <select id="add-branch" class="form-select rounded-3 border-primary shadow-sm bg-primary bg-opacity-10">
+                        <option value="">-- Chi phí chung Tổng công ty --</option>
+                        <?php foreach($branches as $b): ?>
+                            <option value="<?= $b['id'] ?>"><?= htmlspecialchars($b['name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <?php endif; ?>
             </div>
             <div class="modal-footer border-0 px-4 pb-4 pt-0 gap-2">
                 <button class="btn btn-light rounded-3 px-4" data-bs-dismiss="modal">Hủy</button>
@@ -210,6 +223,9 @@ function submitAdd() {
 
     if (!title || !amount || !date) { alert('Vui lòng nhập đủ các trường bắt buộc'); return; }
 
+    const branchSelect = document.getElementById('add-branch');
+    const branchId = branchSelect ? branchSelect.value : '';
+
     fetch('/business/expenses/store', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -219,6 +235,7 @@ function submitAdd() {
             amount: amount,
             expense_date: date,
             note: document.getElementById('add-note').value,
+            branch_id: branchId 
         })
     }).then(r => r.json()).then(data => {
         if (data.status === 'success') location.reload();

@@ -43,7 +43,7 @@
                 <div class="fw-bold text-success"><?= number_format($customer['total_spent'] ?? 0) ?> ₫</div>
             </div>
             <div class="col-md-6">
-                <div class="text-secondary small mb-1">Nhóm khách / Tags</div>
+                <div class="text-secondary small mb-1">Nhãn / Tags</div>
                 <div class="fw-medium text-dark"><?= htmlspecialchars($customer['tags'] ?? 'Không có') ?></div>
             </div>
             <div class="col-md-6">
