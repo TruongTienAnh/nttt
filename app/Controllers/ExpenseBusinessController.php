@@ -122,7 +122,7 @@ class ExpenseBusinessController extends BaseController
             'updated_at'   => date('Y-m-d H:i:s')
         ];
 
-        if ($this->branchId === 'all' && request()->has('branch_id')) {
+        if ($this->branchId === 'all' && isset($_POST['branch_id'])) {
             $selected = request('branch_id');
             $updateData['branch_id'] = empty($selected) ? null : $selected;
         }
