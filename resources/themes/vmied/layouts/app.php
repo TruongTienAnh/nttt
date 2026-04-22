@@ -395,7 +395,7 @@
             <div class="nav-section-header">Tài chính Chiến lược</div>
             <a href="/reports/finance/net-profit" class="nav-link-custom <?= strpos($_SERVER['REQUEST_URI'], '/reports/finance/net-profit') === 0 ? 'active' : '' ?>"><i class="bi bi-wallet2 icon-main"></i> Lợi nhuận ròng</a>
             <a href="/reports/finance/break-even" class="nav-link-custom <?= strpos($_SERVER['REQUEST_URI'], '/reports/finance/break-even') === 0 ? 'active' : '' ?>"><i class="bi bi-water icon-main"></i> Điểm hòa vốn</a>
-            <a href="/reports/finance/forecast" class="nav-link-custom <?= strpos($_SERVER['REQUEST_URI'], '/reports/finance/forecast') === 0 ? 'active' : '' ?>"><i class="bi bi-crystal-ball icon-main"></i> Dự báo doanh thu</a>
+            <a href="/reports/finance/forecast" class="nav-link-custom <?= strpos($_SERVER['REQUEST_URI'], '/reports/finance/forecast') === 0 ? 'active' : '' ?>"><i class="bi bi-graph-up icon-main"></i> Dự báo doanh thu</a>
             <a href="/reports/finance/roi" class="nav-link-custom <?= strpos($_SERVER['REQUEST_URI'], '/reports/finance/roi') === 0 ? 'active' : '' ?>"><i class="bi bi-piggy-bank icon-main"></i> Hiệu quả rót vốn</a>
             <a href="/reports/finance/location-pnl" class="nav-link-custom <?= strpos($_SERVER['REQUEST_URI'], '/reports/finance/location-pnl') === 0 ? 'active' : '' ?>"><i class="bi bi-trophy icon-main"></i> So sánh chi nhánh</a>
 
