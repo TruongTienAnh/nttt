@@ -14,7 +14,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <script src="https://unpkg.com/htmx.org@1.9.11"></script>
-    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
     <style>
         :root {
@@ -420,24 +420,32 @@
         <!-- Sidebar Footer -->
         <div class="p-3 d-flex align-items-center justify-content-between border-top border-secondary-subtle mt-auto z-2 bg-body">
             
+            <?php 
+                // Lấy tên User từ Session để làm Avatar và Tên hiển thị
+                $userName = $_SESSION['account']['name'] ?? 'User';
+                $userInitial = mb_strtoupper(mb_substr($userName, 0, 1, 'UTF-8'));
+            ?>
             <div class="dropup d-flex align-items-center flex-grow-1">
-                <div class="d-flex align-items-center p-1 cursor-pointer dropdown-toggle w-100 rounded-2" data-bs-toggle="dropdown" aria-expanded="false">
-                    <div class="avatar bg-secondary-subtle text-secondary rounded-circle me-2" style="width: 24px; height: 24px;">U</div>
-                    <span class="fs-7 text-secondary text-truncate">Cài đặt tài khoản</span>
+                <div class="d-flex align-items-center p-1 cursor-pointer dropdown-toggle w-100 rounded-2 hover-bg" data-bs-toggle="dropdown" aria-expanded="false">
+                    <div class="avatar bg-primary text-white rounded-circle me-2 fw-bold" style="width: 28px; height: 28px; font-size: 0.8rem;">
+                        <?= $userInitial ?>
+                    </div>
+                    <span class="fs-7 fw-medium text-truncate" style="max-width: 120px;" title="<?= htmlspecialchars($userName) ?>">
+                        <?= htmlspecialchars($userName) ?>
+                    </span>
                 </div>
                 
                 <ul class="dropdown-menu dropdown-menu-solid py-2 mb-2 w-100 ms-2">
                     <li><h6 class="dropdown-header fs-8 text-uppercase fw-semibold opacity-75">Tài khoản</h6></li>
-                    <li><a class="dropdown-item fs-7 py-2 d-flex align-items-center rounded mx-1 px-3 m-0" href="#"><i class="bi bi-person me-3 text-secondary"></i> Hồ sơ</a></li>
-                    <li><a class="dropdown-item fs-7 py-2 d-flex align-items-center rounded mx-1 px-3 m-0" href="#"><i class="bi bi-gear me-3 text-secondary"></i> Tùy chỉnh</a></li>
+                    <li><a class="dropdown-item fs-7 py-2 d-flex align-items-center rounded mx-1 px-3 m-0" href="/app/account"><i class="bi bi-person me-3 text-secondary"></i> Hồ sơ</a></li>
+                    <li><a class="dropdown-item fs-7 py-2 d-flex align-items-center rounded mx-1 px-3 m-0" href="/app/account"><i class="bi bi-gear me-3 text-secondary"></i> Tùy chỉnh</a></li>
                     <li><hr class="dropdown-divider border-secondary-subtle opacity-50 my-1"></li>
-                    <li><a class="dropdown-item fs-7 py-2 d-flex align-items-center rounded mx-1 px-3 text-danger m-0" href="#"><i class="bi bi-box-arrow-right me-3"></i> Đăng xuất</a></li>
+                    <li><a class="dropdown-item fs-7 py-2 d-flex align-items-center rounded mx-1 px-3 text-danger m-0" href="/logout"><i class="bi bi-box-arrow-right me-3"></i> Đăng xuất</a></li>
                 </ul>
             </div>
 
-            <!-- THEME SELECTOR -->
             <div class="dropup d-flex align-items-center ms-2">
-                <div class="p-2 rounded cursor-pointer dropdown-toggle d-flex align-items-center justify-content-center text-secondary border border-secondary-subtle" data-bs-toggle="dropdown" aria-expanded="false" title="Giao diện" style="width: 32px; height: 32px; background: var(--eclo-hover-bg);">
+                <div class="p-2 rounded cursor-pointer dropdown-toggle d-flex align-items-center justify-content-center text-secondary border border-secondary-subtle hover-bg" data-bs-toggle="dropdown" aria-expanded="false" title="Giao diện" style="width: 32px; height: 32px;">
                     <i class="bi bi-circle-half fs-7"></i>
                 </div>
                 

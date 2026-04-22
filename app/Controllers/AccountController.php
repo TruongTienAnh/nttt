@@ -26,9 +26,7 @@ class AccountController
 
     public function Profiles() {
         $user = app()->request->user;
-        $account = (object) app()->db->get("accounts",[
-            "[>]points"=>["id"=>"account"]
-        ],
+        $account = (object) app()->db->get("accounts",
         [
             "accounts.email",
             "accounts.name",
@@ -37,7 +35,6 @@ class AccountController
             "accounts.organization",
             "accounts.type",
             "accounts.affiliate",
-            "points.points (point)"
         ],
         [
             "uuid"=>$user->uuid

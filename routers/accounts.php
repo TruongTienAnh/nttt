@@ -3,7 +3,7 @@
 
         $app->router('/account', 'GET', ['App\Controllers\AccountController', 'Account']);
 
-        $app->router('/profiles', 'GET', ['App\Controllers\AccountController', 'Profiles']);
+        $app->router('/profile', 'GET', ['App\Controllers\AccountController', 'Profiles']);
 
         $app->router('/affiliate', 'GET', ['App\Controllers\AccountController', 'Affiliate']);
 
