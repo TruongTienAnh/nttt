@@ -181,6 +181,7 @@ class AuthController
     protected function jwt($account) {
 
         app()->session->set('account',[
+            "id" => $account['id'],
             "uuid" => $account['uuid'],
             "name" => $account['name'],
             "avatar" => $account['avatar'],

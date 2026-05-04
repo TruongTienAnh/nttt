@@ -1,246 +1,91 @@
 <?php $this->extend('layouts/app') ?>
-
 <?php $this->section('content') ?>
-<main class="container py-5 mt-5">
-
-    <!-- Header -->
-    <div class="d-flex align-items-center justify-content-between mb-4">
+<div class="container-fluid py-4 animate-fade-up">
+    <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between mb-4 gap-3">
         <div>
-            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary-subtle rounded-pill px-3 py-2 mb-2">
-                <i data-lucide="git-branch" width="14" class="me-1"></i> Quản lý hệ thống
-            </span>
-            <h1 class="display-6 fw-bolder text-dark mb-1">Chi nhánh</h1>
-            <p class="text-secondary mb-0">Quản lý danh sách chi nhánh trong hệ thống.</p>
+            <h1 class="h3 fw-bold mb-1">Chi Nhánh</h1>
+            <p class="text-secondary mb-0 small">Quản lý các cơ sở và địa điểm kinh doanh</p>
         </div>
-        <button class="btn btn-primary fw-bold rounded-4 px-4 py-2 shadow-sm d-flex align-items-center gap-2"
-                data-bs-toggle="modal" data-bs-target="#modalAdd">
-            <i data-lucide="plus" width="18"></i> Thêm chi nhánh
-        </button>
+        
+        <div class="d-flex align-items-center gap-2">
+            <div class="input-group shadow-sm rounded-pill overflow-hidden" style="width: 280px; border: 1px solid var(--bs-border-color-translucent);">
+                <span class="input-group-text bg-white border-0 text-secondary"><i class="bi bi-search"></i></span>
+                <input type="text" id="brandSearchInput" class="form-control border-0 bg-white shadow-none ps-0" placeholder="Tìm tên, SĐT, loại...">
+            </div>
+            
+            <button onclick="modal('/config/brands/create')" class="btn btn-primary rounded-pill px-4 shadow-sm text-nowrap">
+                <i class="bi bi-plus-lg me-1"></i> Thêm chi nhánh
+            </button>
+        </div>
     </div>
 
-    <!-- Table Card -->
-    <div class="glass-card rounded-5 overflow-hidden shadow-sm border">
-        <div class="d-flex align-items-center justify-content-between px-4 py-3 bg-light border-bottom">
-            <span class="fw-bold text-dark">
-                Tổng: <span class="text-primary"><?= count($brands) ?></span> chi nhánh
-            </span>
-            <div class="input-group" style="max-width: 260px;">
-                <span class="input-group-text bg-white border-end-0">
-                    <i data-lucide="search" width="16" class="text-secondary"></i>
-                </span>
-                <input type="text" id="searchInput" class="form-control border-start-0 shadow-none"
-                       placeholder="Tìm kiếm...">
-            </div>
-        </div>
-
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0" id="branchTable">
-                <thead class="bg-light text-secondary small fw-bold text-uppercase">
-                    <tr>
-                        <th class="px-4 py-3">#</th>
-                        <th class="px-4 py-3">Tên chi nhánh</th>
-                        <th class="px-4 py-3">Địa chỉ</th>
-                        <th class="px-4 py-3">Số điện thoại</th>
-                        <th class="px-4 py-3">Loại</th>
-                        <th class="px-4 py-3 text-center">Trạng thái</th>
-                        <th class="px-4 py-3 text-end">Thao tác</th>
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+        <div class="table-responsive custom-scrollbar" style="max-height: 65vh; overflow-y: auto;">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="bg-light position-sticky top-0 shadow-sm" style="z-index: 1;">
+                    <tr class="small text-secondary fw-bold text-uppercase">
+                        <th class="ps-4 py-3 border-bottom-0">Tên chi nhánh</th>
+                        <th class="py-3 border-bottom-0">Địa chỉ / Hotline</th>
+                        <th class="py-3 text-center border-bottom-0">Trạng thái</th>
+                        <th class="pe-4 py-3 text-end border-bottom-0">Thao tác</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php if (empty($brands)): ?>
-                    <tr>
-                        <td colspan="7" class="text-center py-5 text-secondary">
-                            <i data-lucide="inbox" width="40" class="d-block mx-auto mb-2 opacity-30"></i>
-                            Chưa có chi nhánh nào
+                    <?php foreach($brands as $b): ?>
+                    <tr class="searchable-row">
+                        <td class="ps-4 py-3">
+                            <div class="fw-bold text-dark"><?= htmlspecialchars($b['name']) ?></div>
+                            <span class="badge bg-light text-secondary border px-2"><?= strtoupper($b['type'] ?? 'SPA') ?></span>
                         </td>
-                    </tr>
-                    <?php else: ?>
-                    <?php foreach ($brands as $i => $branch): ?>
-                    <tr class="branch-row">
-                        <td class="px-4 py-3 text-secondary font-monospace small"><?= $i + 1 ?></td>
-                        <td class="px-4 py-3">
-                            <div class="fw-bold text-dark"><?= htmlspecialchars($branch['name']) ?></div>
-                        </td>
-                        <td class="px-4 py-3 text-secondary small"><?= htmlspecialchars($branch['address'] ?? '-') ?></td>  
-                        <td class="px-4 py-3 text-secondary small"><?= htmlspecialchars($branch['phone'] ?? '-') ?></td>
-                        <td class="px-4 py-3">
-                            <?php
-                                $typeMap = ['spa' => 'primary', 'retail' => 'warning', 'hybrid' => 'info'];
-                                $typeColor = $typeMap[$branch['type']] ?? 'secondary';
-                            ?>
-                            <span class="badge bg-<?= $typeColor ?> bg-opacity-10 text-<?= $typeColor ?> border border-<?= $typeColor ?>-subtle rounded-pill px-3">
-                                <?= ucfirst($branch['type'] ?? '-') ?>
-                            </span>
-                        </td>
-                        <td class="px-4 py-3 text-center">
-                            <button class="btn btn-sm rounded-pill px-3 fw-bold border-0
-                                <?= $branch['is_active'] ? 'bg-success bg-opacity-10 text-success' : 'bg-secondary bg-opacity-10 text-secondary' ?>"
-                                hx-post="/config/brands/<?= $branch['id'] ?>/toggle-status"
-                                hx-target="closest tr"
-                                hx-swap="outerHTML"
-                                title="Nhấn để đổi trạng thái">
-                                <?= $branch['is_active'] ? 'Hoạt động' : 'Tắt' ?>
-                            </button>
-                        </td>
-                        <td class="px-4 py-3 text-end">
-                            <div class="d-flex align-items-center justify-content-end gap-2">
-                                <button class="btn btn-sm btn-light border rounded-3 px-3"
-                                        hx-get="/config/brands/<?= $branch['id'] ?>/edit"
-                                        hx-target="#modalEditBody"
-                                        hx-swap="innerHTML"
-                                        data-bs-toggle="modal" 
-                                        data-bs-target="#modalEdit"
-                                        title="Sửa">
-                                    <i data-lucide="pencil" width="15"></i>
-                                </button>
-                                <button class="btn btn-sm btn-light border rounded-3 px-3 text-danger"
-                                        onclick="confirmDelete(<?= $branch['id'] ?>, '<?= htmlspecialchars($branch['name']) ?>')"
-                                        title="Xóa">
-                                    <i data-lucide="trash-2" width="15"></i>
-                                </button>
+                        <td class="py-3">
+                            <div class="small text-dark text-truncate" style="max-width: 250px;" title="<?= htmlspecialchars($b['address'] ?? '') ?>">
+                                <?= htmlspecialchars($b['address'] ?? '') ?: '<span class="text-muted fst-italic">Chưa có địa chỉ</span>' ?>
                             </div>
+                            <div class="small text-secondary fw-medium"><?= htmlspecialchars($b['phone'] ?? '') ?></div>
+                        </td>
+                        <td class="py-3 text-center">
+                            <div class="form-check form-switch d-flex justify-content-center m-0">
+                                <input class="form-check-input cursor-pointer shadow-none" type="checkbox" role="switch" 
+                                       <?= $b['is_active'] == 1 ? 'checked' : '' ?>
+                                       hx-post="/config/brands/<?= $b['active'] ?>/toggle" hx-swap="none">
+                            </div>
+                        </td>
+                        <td class="pe-4 py-3 text-end">
+                            <button onclick="modal('/config/brands/<?= $b['active'] ?>/edit')" class="btn btn-light btn-sm text-primary rounded-3">
+                                <i class="bi bi-pencil-square"></i>
+                            </button>
+                            <button hx-post="/config/brands/<?= $b['active'] ?>/delete" 
+                                    hx-confirm="Bạn có chắc chắn muốn xóa chi nhánh này?" 
+                                    hx-swap="none" @htmx:after-request="handleResponse" 
+                                    class="btn btn-light btn-sm text-danger rounded-3 ms-1">
+                                <i class="bi bi-trash"></i>
+                            </button>
                         </td>
                     </tr>
                     <?php endforeach; ?>
-                    <?php endif; ?>
                 </tbody>
             </table>
-        </div>
-    </div>
-</main>
-
-<!-- Modal: Thêm chi nhánh -->
-<div class="modal fade" id="modalAdd" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content rounded-5 border-0 shadow-lg">
-            <div class="modal-header border-0 px-4 pt-4 pb-0">
-                <h5 class="modal-title fw-bolder text-dark">Thêm chi nhánh</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body px-4 py-3">
-                <div class="mb-3">
-                    <label class="form-label fw-bold small text-uppercase text-secondary">Tên chi nhánh <span class="text-danger">*</span></label>
-                    <input type="text" id="add-name" class="form-control rounded-3" placeholder="Nhập tên chi nhánh...">
-                </div>
-                <div class="mb-3">
-                    <label class="form-label fw-bold small text-uppercase text-secondary">Địa chỉ</label>
-                    <input type="text" id="add-address" class="form-control rounded-3" placeholder="Nhập địa chỉ...">
-                </div>
-                <div class="row g-3 mb-3">
-                    <div class="col-6">
-                        <label class="form-label fw-bold small text-uppercase text-secondary">Số điện thoại</label>
-                        <input type="text" id="add-phone" class="form-control rounded-3" placeholder="0909...">
-                    </div>
-                    <div class="col-6">
-                        <label class="form-label fw-bold small text-uppercase text-secondary">Loại</label>
-                        <select id="add-type" class="form-select rounded-3">
-                            <option value="spa">Spa</option>
-                            <option value="retail">Retail</option>
-                            <option value="hybrid">Hybrid</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label fw-bold small text-uppercase text-secondary">Trạng thái</label>
-                    <select id="add-status" class="form-select rounded-3">
-                        <option value="1">Hoạt động</option>
-                        <option value="0">Tắt</option>
-                    </select>
-                </div>
-            </div>
-            <div class="modal-footer border-0 px-4 pb-4 pt-0 gap-2">
-                <button class="btn btn-light rounded-3 px-4" data-bs-dismiss="modal">Hủy</button>
-                <button class="btn btn-primary rounded-3 px-4 fw-bold" onclick="submitAdd()">
-                    <i data-lucide="save" width="16" class="me-1"></i> Lưu
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Modal: Sửa chi nhánh -->
-<div class="modal fade" id="modalEdit" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content rounded-5 border-0 shadow-lg">
-            <div class="modal-header border-0 px-4 pt-4 pb-0">
-                <h5 class="modal-title fw-bolder text-dark">Sửa chi nhánh</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div id="modalEditBody" class="modal-body px-4 py-3">
-                <div class="text-center py-4 text-secondary">
-                    <div class="spinner-border spinner-border-sm me-2"></div> Đang tải...
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Modal: Xác nhận xóa -->
-<div class="modal fade" id="modalDelete" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered modal-sm">
-        <div class="modal-content rounded-5 border-0 shadow-lg">
-            <div class="modal-body text-center px-4 py-4">
-                <div class="bg-danger bg-opacity-10 text-danger rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width:60px;height:60px;">
-                    <i data-lucide="trash-2" width="28"></i>
-                </div>
-                <h5 class="fw-bolder text-dark mb-1">Xóa chi nhánh?</h5>
-                <p class="text-secondary small mb-4">Bạn sắp xóa <strong id="deleteName"></strong>. Hành động này không thể hoàn tác.</p>
-                <div class="d-flex gap-2 justify-content-center">
-                    <button class="btn btn-light rounded-3 px-4" data-bs-dismiss="modal">Hủy</button>
-                    <button class="btn btn-danger rounded-3 px-4 fw-bold" id="btnConfirmDelete">Xóa</button>
-                </div>
-            </div>
         </div>
     </div>
 </div>
 
 <script>
-// Search
-document.getElementById('searchInput').addEventListener('input', function () {
-    const q = this.value.toLowerCase();
-    document.querySelectorAll('.branch-row').forEach(row => {
-        row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
-    });
-});
-
-// Thêm chi nhánh
-function submitAdd() {
-    const name = document.getElementById('add-name').value.trim();
-    if (!name) { alert('Vui lòng nhập tên chi nhánh'); return; }
-
-    fetch('/config/brands/store', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-            name:      name,
-            address:   document.getElementById('add-address').value,
-            phone:     document.getElementById('add-phone').value,
-            type:      document.getElementById('add-type').value,
-            is_active: document.getElementById('add-status').value,
-        })
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (data.status === 'success') {
-            location.reload();
-        } else {
-            alert(data.alert);
-        }
-    });
-}
-
-// Xóa chi nhánh
-function confirmDelete(id, name) {
-    document.getElementById('deleteName').textContent = name;
-    document.getElementById('btnConfirmDelete').onclick = function () {
-        fetch(`/config/brands/${id}/delete`, { method: 'POST' })
-        .then(r => r.json())
-        .then(data => {
-            if (data.status === 'success') location.reload();
-            else alert(data.alert);
+// Script Tìm kiếm chuẩn xác (Dùng TextContent & ClassList)
+document.addEventListener('DOMContentLoaded', function() {
+    var searchInput = document.getElementById('brandSearchInput');
+    if (searchInput) {
+        searchInput.addEventListener('input', function () {
+            var q = this.value.toLowerCase().trim();
+            document.querySelectorAll('.searchable-row').forEach(function(row) {
+                var text = row.textContent.toLowerCase();
+                if (text.includes(q)) { 
+                    row.classList.remove('d-none'); 
+                } else { 
+                    row.classList.add('d-none'); 
+                }
+            });
         });
-    };
-    new bootstrap.Modal(document.getElementById('modalDelete')).show();
-}
+    }
+});
 </script>
 <?php $this->endSection() ?>

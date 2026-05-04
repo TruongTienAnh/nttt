@@ -12,9 +12,23 @@
         </div>
     </div>
 
+    <div class="row g-3 mb-4 text-center">
+        <div class="col-md-6">
+            <div class="glass-card p-3 rounded-4 border-start border-4 border-primary shadow-sm h-100 bg-white d-flex flex-column justify-content-center">
+                <div class="text-secondary small fw-bold text-uppercase">Tổng khách hàng</div>
+                <div class="h3 mb-0 fw-bold text-primary"><?= number_format($totalCustomers ?? count($customers)) ?> <i class="bi bi-person fs-5"></i></div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="glass-card p-3 rounded-4 border-start border-4 border-success shadow-sm h-100 bg-white d-flex flex-column justify-content-center">
+                <div class="text-secondary small fw-bold text-uppercase">Khách mới tháng này</div>
+                <div class="h3 mb-0 fw-bold text-success">+<?= number_format($newCustomers ?? 0) ?> <i class="bi bi-graph-up-arrow fs-5"></i></div>
+            </div>
+        </div>
+    </div>
     <div class="glass-card rounded-4 overflow-hidden shadow-sm border">
         <div class="d-flex align-items-center justify-content-between px-4 py-3 bg-light border-bottom">
-            <span class="fw-bold text-dark">Danh sách Khách hàng</span>
+            <span class="fw-bold text-dark">Danh sách Khách hàng (<span id="visibleCount" class="text-primary"><?= count($customers) ?></span>)</span>
             <div class="input-group" style="max-width: 300px;">
                 <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-secondary"></i></span>
                 <input type="text" id="customerSearchInput" class="form-control border-start-0 shadow-none" placeholder="Tìm tên, SĐT...">

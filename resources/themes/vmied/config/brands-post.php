@@ -1,58 +1,47 @@
-<div class="mb-3">
-    <label class="form-label fw-bold small text-uppercase text-secondary">Tên chi nhánh <span class="text-danger">*</span></label>
-    <input type="text" id="edit-name" class="form-control rounded-3" value="<?= htmlspecialchars($brand->name) ?>">
-</div>
-<div class="mb-3">
-    <label class="form-label fw-bold small text-uppercase text-secondary">Địa chỉ</label>
-    <input type="text" id="edit-address" class="form-control rounded-3" value="<?= htmlspecialchars($brand->address ?? '') ?>">
-</div>
-<div class="row g-3 mb-3">
-    <div class="col-6">
-        <label class="form-label fw-bold small text-uppercase text-secondary">Số điện thoại</label>
-        <input type="text" id="edit-phone" class="form-control rounded-3" value="<?= htmlspecialchars($brand->phone ?? '') ?>">
-    </div>
-    <div class="col-6">
-        <label class="form-label fw-bold small text-uppercase text-secondary">Loại</label>
-        <select id="edit-type" class="form-select rounded-3">
-            <option value="spa"    <?= ($brand->type ?? '') === 'spa'    ? 'selected' : '' ?>>Spa</option>
-            <option value="retail" <?= ($brand->type ?? '') === 'gun' ? 'selected' : '' ?>>Gun</option>
-        </select>
-    </div>
-</div>
-<div class="mb-3">
-    <label class="form-label fw-bold small text-uppercase text-secondary">Trạng thái</label>
-    <select id="edit-status" class="form-select rounded-3">
-        <option value="1" <?= ($brand->is_active ?? 0) == 1 ? 'selected' : '' ?>>Hoạt động</option>
-        <option value="0" <?= ($brand->is_active ?? 0) == 0 ? 'selected' : '' ?>>Tắt</option>
-    </select>
-</div>
-<div class="modal-footer border-0 px-0 pb-0 gap-2">
-    <button class="btn btn-light rounded-3 px-4" data-bs-dismiss="modal">Hủy</button>
-    <button class="btn btn-primary rounded-3 px-4 fw-bold" onclick="submitEdit(<?= $brand->id ?>)">
-        <i data-lucide="save" width="16" class="me-1"></i> Cập nhật
-    </button>
-</div>
+<div class="modal fade modal-load" id="modal-brand" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header p-4 border-bottom-0">
+                <h5 class="modal-title fw-bold">
+                    <i class="bi bi-geo-alt me-2 text-primary"></i>
+                    <?= $brand ? 'Cập nhật chi nhánh' : 'Thêm chi nhánh mới' ?>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4 pt-0">
+                <form hx-post="<?= $brand ? '/config/brands/'.$brand['active'].'/update' : '/config/brands/store' ?>" 
+                      hx-swap="none" @htmx:after-request="handleResponse">
+                    
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Tên chi nhánh</label>
+                        <input type="text" name="name" class="form-control rounded-3" value="<?= $brand['name'] ?? '' ?>" required>
+                    </div>
 
-<script>
-function submitEdit(id) {
-    const name = document.getElementById('edit-name').value.trim();
-    if (!name) { alert('Vui lòng nhập tên chi nhánh'); return; }
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Địa chỉ</label>
+                        <input type="text" name="address" class="form-control rounded-3" value="<?= $brand['address'] ?? '' ?>">
+                    </div>
 
-    fetch(`/config/brands/${id}/update`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-            name:      name,
-            address:   document.getElementById('edit-address').value,
-            phone:     document.getElementById('edit-phone').value,
-            type:      document.getElementById('edit-type').value,
-            is_active: document.getElementById('edit-status').value,
-        })
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (data.status === 'success') location.reload();
-        else alert(data.alert);
-    });
-}
-</script>
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label class="form-label small fw-bold">Số điện thoại</label>
+                            <input type="text" name="phone" class="form-control rounded-3" value="<?= $brand['phone'] ?? '' ?>">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-bold">Loại hình</label>
+                            <select name="type" class="form-select rounded-3">
+                                <option value="spa" <?= (isset($brand['type']) && $brand['type'] == 'spa') ? 'selected' : '' ?>>Spa / Clinic</option>
+                                <option value="retail" <?= (isset($brand['type']) && $brand['type'] == 'retail') ? 'selected' : '' ?>>Retail (Bán lẻ)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 pt-3 border-top text-end">
+                        <button type="button" class="btn btn-light px-4 me-2 rounded-pill" data-bs-dismiss="modal">Đóng</button>
+                        <button type="submit" class="btn btn-primary px-5 rounded-pill shadow-sm fw-bold">Lưu lại</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

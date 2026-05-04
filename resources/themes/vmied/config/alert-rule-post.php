@@ -60,9 +60,16 @@
                         <div class="col-md-6">
                             <label class="form-label fw-bold small text-secondary">Giới hạn chi nhánh áp dụng</label>
                             
-                            <?php if ($this->branchId !== 'all'): ?>
-                                <input type="text" class="form-control rounded-3 bg-light text-muted fw-bold" value="<?= htmlspecialchars($this->branchName ?? 'Chi nhánh hiện tại') ?>" readonly>
-                                <input type="hidden" name="target_branches" value="<?= $this->branchId ?>">
+                            <?php if ($currentBranchId !== 'all'): ?>
+                                <?php 
+                                    // Tìm tên chi nhánh hiện tại từ mảng branches
+                                    $bName = 'Chi nhánh hiện tại';
+                                    foreach($branches as $b) {
+                                        if($b['id'] == $currentBranchId) { $bName = $b['name']; break; }
+                                    }
+                                ?>
+                                <input type="text" class="form-control rounded-3 bg-light text-muted fw-bold" value="<?= htmlspecialchars($bName) ?>" readonly>
+                                <input type="hidden" name="target_branches" value="<?= $currentBranchId ?>">
                             <?php else: ?>
                                 <div x-data="{ 
                                     open: false, 

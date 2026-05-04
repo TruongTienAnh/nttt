@@ -38,19 +38,13 @@ class MenuHelper
                     'title' => 'Danh mục chi phí', 
                     'link' => '/config/expense-categories', 
                     'icon' => 'bi-wallet2', 
-                    'perm' => 'config'
+                    'perm' => 'ExpenseCategories'
                 ],
                 [
                     'title' => 'Cảnh báo', 
                     'link' => '/config/alerts', 
                     'icon' => 'bi-exclamation-triangle', 
-                    'perm' => 'config'
-                ],
-                [
-                    'title' => 'Tích hợp API', 
-                    'link' => '#', 
-                    'icon' => 'bi-activity', 
-                    'perm' => 'config'
+                    'perm' => 'alerts'
                 ],
             ],
             'Dữ liệu' => [
@@ -67,16 +61,10 @@ class MenuHelper
                     'perm' => 'customers'
                 ],
                 [
-                    'title' => 'Lịch hẹn', 
-                    'link' => '#', 
-                    'icon' => 'bi-clock', 
-                    'perm' => ''
-                ],
-                [
                     'title' => 'Chi phí', 
                     'link' => '/business/expenses', 
                     'icon' => 'bi-graph-up', 
-                    'perm' => 'expenditure'
+                    'perm' => 'expense'
                 ],
             ],
             'Báo cáo Khách hàng' => [
@@ -84,19 +72,19 @@ class MenuHelper
                     'title' => 'Phân khúc RFM', 
                     'link' => '/reports/customers/rfm', 
                     'icon' => 'bi-people', 
-                    'perm' => 'see-all'
+                    'perm' => 'reports.customers'
                 ],
                 [
                     'title' => 'Vòng đời & Churn', 
                     'link' => '/reports/customers/churn', 
                     'icon' => 'bi-heart-pulse', 
-                    'perm' => 'see-all'
+                    'perm' => 'reports.customers'
                 ],
                 [
                     'title' => 'Bán chéo (Cross-sell)', 
                     'link' => '/reports/customers/cross-sell', 
                     'icon' => 'bi-cart-plus', 
-                    'perm' => 'see-all'
+                    'perm' => 'reports.customers'
                 ],
             ],
             'Tài chính Chiến lược' => [
@@ -104,47 +92,37 @@ class MenuHelper
                     'title' => 'Lợi nhuận ròng', 
                     'link' => '/reports/finance/net-profit', 
                     'icon' => 'bi-wallet2', 
-                    'perm' => 'revenue'
+                    'perm' => 'reports.finance'
                 ],
                 [
                     'title' => 'Điểm hòa vốn', 
                     'link' => '/reports/finance/break-even', 
                     'icon' => 'bi-water', 
-                    'perm' => 'revenue'
+                    'perm' => 'reports.finance'
                 ],
                 [
                     'title' => 'Dự báo doanh thu', 
                     'link' => '/reports/finance/forecast', 
                     'icon' => 'bi-graph-up', 
-                    'perm' => 'revenue'
+                    'perm' => 'reports.finance'
                 ],
                 [
                     'title' => 'Hiệu quả rót vốn', 
                     'link' => '/reports/finance/roi', 
                     'icon' => 'bi-piggy-bank', 
-                    'perm' => 'revenue'
+                    'perm' => 'reports.finance'
                 ],
                 [
                     'title' => 'So sánh chi nhánh', 
                     'link' => '/reports/finance/location-pnl', 
                     'icon' => 'bi-trophy', 
-                    'perm' => 'revenue'
+                    'perm' => 'reports.finance'
                 ],
                 [
                     'title' => 'Báo cáo động', 
                     'link' => '/reports/dynamic', 
                     'icon' => 'bi-graph-down', 
-                    'perm' => 'revenue'
-                ],
-            ],
-            'Hệ thống' => [
-                [
-                    'title' => 'Cài đặt', 
-                    'link' => '#', 'icon' => 'bi-gear', 'perm' => 'config'
-                ],
-                [
-                    'title' => 'Xuất báo cáo', 
-                    'link' => '#', 'icon' => 'bi-file-earmark-arrow-down', 'perm' => 'see-all'
+                    'perm' => 'reports.finance'
                 ],
             ],
             'Quản trị' => [

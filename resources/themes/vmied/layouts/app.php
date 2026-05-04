@@ -1,3 +1,8 @@
+<?php 
+    // Gọi Helper để lấy danh sách Menu
+    use App\Helpers\MenuHelper;
+    $sidebarMenu = MenuHelper::getSidebar(); 
+?>
 <!DOCTYPE html>
 <html lang="vi">
 <head>
@@ -56,7 +61,6 @@
 
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            /*overflow: hidden; */
             transition: background 0.3s ease;
         }
         [data-bs-theme="light"] body { background: #f8f9fa; }
@@ -214,7 +218,6 @@
 </head>
 <body class="bg-body text-body vh-100 d-flex flex-column flex-lg-row overflow-hidden" x-data="themeManager()" :data-bs-theme="actualTheme">
 
-    <!-- MOBILE HEADER -->
     <div class="d-lg-none d-flex align-items-center justify-content-between p-3 border-bottom border-secondary-subtle w-100 sidebar-solid z-3">
         <div class="d-flex align-items-center gap-2">
             <div class="workspace-avatar" style="width:28px;height:28px;font-size:0.8rem;">S</div>
@@ -225,27 +228,46 @@
         </button>
     </div>
 
-    <!-- SIDEBAR -->
     <nav class="offcanvas-lg offcanvas-start sidebar-solid d-flex flex-column h-100" tabindex="-1" id="sidebarOffcanvas" style="width: var(--eclo-sidebar-width); flex-shrink: 0; resize: horizontal; overflow: hidden;">
         
-        <!-- Workspace Switcher -->
         <div class="px-3 pt-4 pb-2">
             <?php
                 // 1. Lấy thông tin từ Session
+                $user = $_SESSION['account'] ?? null;
+                $userId = $user['id'] ?? 0;
+                $permissionId = $user['permission_id'] ?? 0;
                 $orgId = $_SESSION['organization_id'] ?? "e027cf6e-538d-4257-9691-068b36e280f8";
                 $currentBranchId = $_SESSION['current_branch_id'] ?? 'all';
                 $branches = [];
                 
-                // 2. Truy vấn lấy danh sách chi nhánh (chưa bị xóa)
-                if ($orgId) {
-                    $branches = app()->db->select('branches', '*', [
-                        'organization_id' => $orgId,
-                        'deleted' => 0, 
-                        'ORDER' => ['id' => 'ASC']
-                    ]);
+                // 2. Truy vấn lấy danh sách chi nhánh được phép
+                if ($orgId && $userId) {
+                    // Nếu là Super Admin (ID = 1), lấy tất cả chi nhánh của Organization
+                    if ($permissionId == 1) {
+                        $branches = app()->db->select('branches', '*', [
+                            'organization_id' => $orgId,
+                            'deleted' => 0, 
+                            'ORDER' => ['name' => 'ASC']
+                        ]);
+                    } 
+                    // Nếu là nhân viên thường, chỉ lấy chi nhánh có trong bảng brands_linkables
+                    else {
+                        $branches = app()->db->select('branches', [
+                            '[>]brands_linkables' => ['id' => 'branch_id']
+                        ], [
+                            'branches.id',
+                            'branches.name',
+                            'branches.active'
+                        ], [
+                            'brands_linkables.account_id' => $userId,
+                            'branches.organization_id' => $orgId,
+                            'branches.deleted' => 0,
+                            'ORDER' => ['branches.name' => 'ASC']
+                        ]);
+                    }
                 }
 
-                // 3. Xác định tên và Avatar hiển thị
+                // 3. Xác định tên hiển thị hiện tại
                 $displayBranchName = 'Tất cả chi nhánh';
                 $displayInitial = 'A';
 
@@ -324,24 +346,23 @@
 
                     <li><hr class="dropdown-divider border-secondary-subtle opacity-50 my-2"></li>
                     <li>
+                        <?php if (\App\Helpers\MenuHelper::canSee('branch')): ?>
                         <a class="dropdown-item fs-7 py-2 d-flex align-items-center rounded mx-1 px-2 text-secondary m-0" href="/config/brands">
                             <i class="bi bi-plus-circle me-3"></i> Quản lý Chi nhánh
                         </a>
+                        <?php endif; ?>
                     </li>
                 </ul>
             </div>
         </div>
 
-        <!-- Scrollable Navigation -->
         <div class="flex-grow-1 overflow-y-auto pb-4 px-2">
             
-            <!-- Dashboard -->
-            <a href="#" class="nav-link-custom active mt-1">
+            <a href="/" class="nav-link-custom <?= $_SERVER['REQUEST_URI'] == '/' ? 'active' : '' ?> mt-1">
                 <i class="bi bi-grid-1x2 icon-main"></i>
                 <span class="ms-2">Dashboard</span>
             </a>
 
-            <!-- Thông báo -->
             <div class="dropdown" x-data="{ 
                 alerts: [], 
                 unreadCount: 0,
@@ -412,93 +433,39 @@
                         </template>
                     </div>
 
+                    <?php if (\App\Helpers\MenuHelper::canSee('config')): ?>
                     <div class="p-2 text-center border-top">
                         <a href="/config/alerts" class="text-primary fs-8 fw-bold text-decoration-none">Quản lý quy tắc</a>
                     </div>
+                    <?php endif; ?>
                 </div>
             </div>
 
-            <!-- CẤU HÌNH -->
-            <div class="nav-section-header">Cấu hình</div>
-            
-            <a href="/config/brands" class="nav-link-custom">
-                <i class="bi bi-geo-alt icon-main"></i>
-                <span class="ms-2">Chi nhánh</span>
-            </a>
-            <a href="/config/expense-categories" class="nav-link-custom">
-                <i class="bi bi-wallet2 icon-main"></i>
-                <span class="ms-2">Danh mục chi phí</span>
-            </a>
-            <a href="/config/alerts" class="nav-link-custom">
-                <i class="bi bi-exclamation-triangle icon-main"></i>
-                <span class="ms-2">Cảnh báo</span>
-            </a>
-            <a href="#" class="nav-link-custom">
-                <i class="bi bi-activity icon-main"></i>
-                <span class="ms-2">Tích hợp API</span>
-            </a>
+            <?php foreach ($sidebarMenu as $header => $items): ?>
+                <?php 
+                    // Lọc ra các menu con mà user có quyền xem
+                    $visibleItems = array_filter($items, function($item) {
+                        return MenuHelper::canSee($item['perm']);
+                    });
+                ?>
 
-            <!-- DỮ LIỆU -->
-            <div class="nav-section-header">Dữ liệu</div>
+                <?php if (!empty($visibleItems)): ?>
+                    <div class="nav-section-header"><?= htmlspecialchars($header) ?></div>
+                    
+                    <?php foreach ($visibleItems as $item): ?>
+                        <?php 
+                            $isActive = ($item['link'] !== '#' && str_starts_with($_SERVER['REQUEST_URI'], $item['link']));
+                        ?>
+                        <a href="<?= $item['link'] ?>" class="nav-link-custom <?= $isActive ? 'active' : '' ?>">
+                            <i class="bi <?= $item['icon'] ?> icon-main"></i>
+                            <span class="ms-2"><?= htmlspecialchars($item['title']) ?></span>
+                        </a>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            <?php endforeach; ?>
 
-            <a href="/business/invoices" class="nav-link-custom">
-                <i class="bi bi-receipt icon-main"></i>
-                <span class="ms-2">Hóa đơn</span>
-            </a>
-            <a href="/business/customers" class="nav-link-custom">
-                <i class="bi bi-person-lines-fill icon-main"></i>
-                <span class="ms-2">Khách hàng</span>
-            </a>
-            <a href="#" class="nav-link-custom">
-                <i class="bi bi-clock icon-main"></i>
-                <span class="ms-2">Lịch hẹn</span>
-            </a>
-            <a href="/business/expenses" class="nav-link-custom">
-                <i class="bi bi-graph-up icon-main"></i>
-                <span class="ms-2">Chi phí</span>
-            </a>
-
-            <!-- BÁO CÁO -->
-            <div class="nav-section-header">Báo cáo Khách hàng</div>
-            <a href="/reports/customers/rfm" class="nav-link-custom <?= strpos($_SERVER['REQUEST_URI'], '/reports/customers/rfm') === 0 ? 'active' : '' ?>"><i class="bi bi-people icon-main"></i> Phân khúc RFM</a>
-            <a href="/reports/customers/churn" class="nav-link-custom <?= strpos($_SERVER['REQUEST_URI'], '/reports/customers/churn') === 0 ? 'active' : '' ?>"><i class="bi bi-heart-pulse icon-main"></i> Vòng đời & Churn</a>
-            <a href="/reports/customers/cross-sell" class="nav-link-custom <?= strpos($_SERVER['REQUEST_URI'], '/reports/customers/cross-sell') === 0 ? 'active' : '' ?>"><i class="bi bi-cart-plus icon-main"></i> Bán chéo (Cross-sell)</a>
-
-            <div class="nav-section-header">Tài chính Chiến lược</div>
-            <a href="/reports/finance/net-profit" class="nav-link-custom <?= strpos($_SERVER['REQUEST_URI'], '/reports/finance/net-profit') === 0 ? 'active' : '' ?>"><i class="bi bi-wallet2 icon-main"></i> Lợi nhuận ròng</a>
-            <a href="/reports/finance/break-even" class="nav-link-custom <?= strpos($_SERVER['REQUEST_URI'], '/reports/finance/break-even') === 0 ? 'active' : '' ?>"><i class="bi bi-water icon-main"></i> Điểm hòa vốn</a>
-            <a href="/reports/finance/forecast" class="nav-link-custom <?= strpos($_SERVER['REQUEST_URI'], '/reports/finance/forecast') === 0 ? 'active' : '' ?>"><i class="bi bi-graph-up icon-main"></i> Dự báo doanh thu</a>
-            <a href="/reports/finance/roi" class="nav-link-custom <?= strpos($_SERVER['REQUEST_URI'], '/reports/finance/roi') === 0 ? 'active' : '' ?>"><i class="bi bi-piggy-bank icon-main"></i> Hiệu quả rót vốn</a>
-            <a href="/reports/finance/location-pnl" class="nav-link-custom <?= strpos($_SERVER['REQUEST_URI'], '/reports/finance/location-pnl') === 0 ? 'active' : '' ?>"><i class="bi bi-trophy icon-main"></i> So sánh chi nhánh</a>
-            <a href="/reports/dynamic" class="nav-link-custom <?= strpos($_SERVER['REQUEST_URI'], '/reports/dynamic') === 0 ? 'active' : '' ?>"><i class="bi bi-graph-down icon-main"></i> Báo cáo động</a>
-
-
-            <!-- HỆ THỐNG -->
-            <div class="nav-section-header">Hệ thống</div>
-
-            <a href="#" class="nav-link-custom">
-                <i class="bi bi-gear icon-main"></i>
-                <span class="ms-2">Cài đặt</span>
-            </a>
-            <a href="#" class="nav-link-custom">
-                <i class="bi bi-file-earmark-arrow-down icon-main"></i>
-                <span class="ms-2">Xuất báo cáo</span>
-            </a>
-
-            <!-- Quản trị -->
-            <div class="nav-section-header">Quản trị</div>
-
-            <a href="/user/accounts" class="nav-link-custom">
-                <i class="bi bi-gear icon-main"></i>
-                <span class="ms-2">Tài khoản</span>
-            </a>
-            <a href="/user/permissions" class="nav-link-custom">
-                <i class="bi bi-file-earmark-arrow-down icon-main"></i>
-                <span class="ms-2">Nhóm quyền</span>
-            </a>
         </div>
 
-        <!-- Sidebar Footer -->
         <div class="p-3 d-flex align-items-center justify-content-between border-top border-secondary-subtle mt-auto z-2 bg-body">
             
             <?php 
@@ -560,12 +527,10 @@
         </div>
     </nav>
 
-    <!-- MAIN CONTENT -->
     <main id="app-content" class="flex-grow-1 overflow-y-auto p-4 p-md-5 w-100">
         <?php echo $this->yield('content'); ?>
     </main>
 
-<!-- Bootstrap JS -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
