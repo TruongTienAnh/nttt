@@ -10,13 +10,15 @@ const resultEmpty = document.getElementById('result-empty');
 const resultFilled = document.getElementById('result-filled');
 
 // Word Count
-textarea.addEventListener('input', function() {
-    const text = this.value.trim();
-    const words = text ? text.split(/\s+/).length : 0;
-    countDisplay.innerText = words;
-    if (words > 200) countDisplay.classList.add('text-danger');
-    else countDisplay.classList.remove('text-danger');
-});
+if (textarea && countDisplay) {
+    textarea.addEventListener('input', function() {
+        const text = this.value.trim();
+        const words = text ? text.split(/\s+/).length : 0;
+        countDisplay.innerText = words;
+        if (words > 200) countDisplay.classList.add('text-danger');
+        else countDisplay.classList.remove('text-danger');
+    });
+}
 
 // Clear Text
 function clearText() {

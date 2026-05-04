@@ -33,7 +33,7 @@ class AuthController
     public function Login() {
         $validate = app()->validate(
             [
-                'email'    => 'required|email',
+                'email'    => 'required',
                 'password' => 'required'
             ],
             [],
@@ -49,7 +49,13 @@ class AuthController
         $email = app()->xss->clean(request('email'));
         $password = request('password');
 
-        $account = app()->db->get("accounts", "*", ["email" => $email]);
+        $account = app()->db->get("accounts", "*", [
+            "OR" => [
+                "email" => $email,
+                "account" => $email
+            ],
+            "deleted" => 0
+        ]);
 
         if (!$account) {
             return response()->json([
@@ -69,6 +75,25 @@ class AuthController
                 'alert' => 'Tài khoản hoặc mật khẩu không đúng'
             ], 401);
         }
+        $userPermissions = [];
+        if (!empty($account['permission_id'])) {
+            $role = app()->db->get("permissions", ["permissions"], [
+                "id" => $account['permission_id'],
+                "deleted" => 0,
+                "status" => 'A'
+            ]);
+
+            if ($role && !empty($role['permissions'])) {
+                // Giải mã serialized giống AuthMiddleware
+                $decodedPerms = @unserialize($role['permissions']);
+                if (is_array($decodedPerms)) {
+                    $userPermissions = $decodedPerms;
+                }
+            }
+        }
+        // Gắn mảng quyền vào biến $account để truyền sang hàm jwt() bên dưới
+        $account['permissions_array'] = $userPermissions;
+        // ==========================================
         $token = $this->jwt($account);
 
         return response()->json([
@@ -162,6 +187,8 @@ class AuthController
             "email" => $account['email'],
             "affiliate" => $account['affiliate'],
             "type" => $account['type'] == 0 ? 'Thành viên' : 'Quản trị',
+            "permission_id" => $account['permission_id'] ?? null,
+            "permissions" => $account['permissions_array'] ?? []
         ]);
 
         $key = $_ENV['APP_KEY'] ?? 'secret_key';

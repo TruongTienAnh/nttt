@@ -1,133 +1,206 @@
 <?php
 namespace App\Controllers;
 
-class AlertController extends BaseController 
+class AlertController extends BaseController
 {
-    // --- 1. RỦI RO CHI PHÍ (Bóc tách theo hạng mục) ---
-    public function CostRisk() 
+    public function Index()
     {
-        if (!$this->orgId) { header('Location: /login'); exit; }
-        $params = ['org' => $this->orgId];
-        $branchSql = $this->branchId !== 'all' ? " AND branch_id = '{$this->branchId}' " : "";
+        $where = [
+            'organization_id' => $this->orgId,
+            'ORDER' => ['created_at' => 'DESC']
+        ];
 
-        $costData = $this->db->query("
-            SELECT 
-                category,
-                SUM(CASE WHEN DATE_FORMAT(expense_date, '%Y-%m') = DATE_FORMAT(NOW(), '%Y-%m') THEN amount ELSE 0 END) as this_month,
-                SUM(CASE WHEN DATE_FORMAT(expense_date, '%Y-%m') = DATE_FORMAT(DATE_SUB(NOW(), INTERVAL 1 MONTH), '%Y-%m') THEN amount ELSE 0 END) as last_month
-            FROM expenses 
-            WHERE organization_id = :org $branchSql AND deleted = 0
-            AND expense_date >= DATE_FORMAT(DATE_SUB(NOW(), INTERVAL 1 MONTH), '%Y-%m-01')
-            GROUP BY category
-        ", $params)->fetchAll();
-
-        $thisMonthTotal = 0; $lastMonthTotal = 0;
-        $categoryBreakdown = [];
-
-        foreach ($costData as $row) {
-            $thisMonthTotal += $row['this_month'];
-            $lastMonthTotal += $row['last_month'];
-            
-            // Logic tính % tăng trưởng thông minh: Nếu tháng trước = 0 thì mặc định là tăng 100%
-            $catGrowth = $row['last_month'] > 0 ? (($row['this_month'] - $row['last_month']) / $row['last_month']) * 100 : ($row['this_month'] > 0 ? 100 : 0);
-            
-            $categoryBreakdown[] = [
-                'category' => $row['category'],
-                'this_month' => $row['this_month'],
-                'last_month' => $row['last_month'],
-                'growth' => $catGrowth,
-                'diff' => $row['this_month'] - $row['last_month']
+        // ĐỒNG BỘ SWITCHER: Lọc theo chi nhánh đang được chọn trên Topbar
+        if ($this->branchId !== 'all') {
+            $where['AND']['OR'] = [
+                'target_branches' => ['', null], // Các quy tắc áp dụng chung cho tất cả
+                'target_branches[~]' => $this->branchId // Các quy tắc có dính dáng đến chi nhánh này
             ];
         }
 
-        $growthRate = $lastMonthTotal > 0 ? (($thisMonthTotal - $lastMonthTotal) / $lastMonthTotal) * 100 : ($thisMonthTotal > 0 ? 100 : 0);
+        $rules = $this->db->select('alert_rules', '*', $where);
 
-        // FIX LOGIC Ở ĐÂY: Chỉ báo đỏ khi tăng > 20% VÀ số tiền tăng > 1.000.000đ
-        $isAlert = ($growthRate > 20 && ($thisMonthTotal - $lastMonthTotal) > 1000000);
-
-        return view('reports/cost-risk', compact('thisMonthTotal', 'lastMonthTotal', 'growthRate', 'isAlert', 'categoryBreakdown'));
+        return view('config/alert-rules', [
+            'rules' => $rules
+        ]);
     }
 
-    // --- 2. RỦI RO THẤT THOÁT (Tính toán doanh thu bị lọt) ---
-    public function LossRisk() 
+    public function Create()
     {
-        if (!$this->orgId) { header('Location: /login'); exit; }
-        
-        $params = ['org' => $this->orgId];
-        $branchSql = $this->branchId !== 'all' ? " AND branch_id = '{$this->branchId}' " : "";
-
-        // 1. Tách riêng Query và Fetch để chống lỗi Fatal Error 500
-        $query = $this->db->query("
-            SELECT COUNT(id) as total_bills, SUM(total) as total_revenue
-            FROM invoices 
-            WHERE organization_id = :org $branchSql 
-            AND DATE(invoice_date) = CURDATE()
-        ", $params);
-        
-        $billData = $query ? $query->fetch() : null;
-        
-        // 2. Ép kiểu an toàn, chống chia cho 0
-        $totalBills = $billData ? (int)$billData['total_bills'] : 0;
-        $totalRevenue = $billData ? (float)$billData['total_revenue'] : 0;
-        $aov = $totalBills > 0 ? $totalRevenue / $totalBills : 0;
-
-        // Giả lập Camera AI đếm được 250 lượt khách hôm nay
-        $footfallTraffic = 250; 
-        $conversionRate = $footfallTraffic > 0 ? ($totalBills / $footfallTraffic) * 100 : 0;
-        
-        // 3. Tính toán thiệt hại
-        $targetConversion = 30; 
-        $targetBills = $footfallTraffic * ($targetConversion / 100);
-        $lostBills = max(0, $targetBills - $totalBills);
-        $estimatedRevenueLost = $lostBills * $aov;
-
-        $isAlert = ($footfallTraffic > 50 && $conversionRate < 15);
-
-        // LƯU Ý: Nếu file giao diện nằm trong thư mục alerts/, hãy sửa chữ 'reports/' thành 'alerts/' nhé!
-        return view('reports/loss-risk', compact(
-            'totalBills', 
-            'footfallTraffic', 
-            'conversionRate', 
-            'isAlert', 
-            'aov', 
-            'estimatedRevenueLost', 
-            'targetConversion'
-        ));
+        $branches = $this->db->select('branches', ['id', 'name'], ['organization_id' => $this->orgId, 'deleted' => 0]);
+        return view('config/alert-rule-post', [
+            'rule' => null,
+            'branches' => $branches
+        ]);
     }
 
-    // --- 3. BÁO ĐỘNG ĐỎ (Trending 7 ngày & WoW) ---
-    public function RedAlert() 
+    public function Edit($id)
     {
-        if (!$this->orgId) { header('Location: /login'); exit; }
-        $params = ['org' => $this->orgId];
-        $branchSql = $this->branchId !== 'all' ? " AND branch_id = '{$this->branchId}' " : "";
+        $rule = $this->db->get('alert_rules', '*', ['id' => $id, 'organization_id' => $this->orgId]);
+        if (!$rule) return "Không tìm thấy dữ liệu!";
 
-        // Lấy doanh thu 7 ngày qua (Từng ngày để vẽ biểu đồ)
-        $dailyData = $this->db->query("
-            SELECT DATE_FORMAT(invoice_date, '%d/%m') as day_label, SUM(total) as daily_rev 
-            FROM invoices 
-            WHERE organization_id = :org $branchSql 
-            AND invoice_date >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
-            GROUP BY DATE(invoice_date)
-            ORDER BY DATE(invoice_date) ASC
-        ", $params)->fetchAll();
+        $branches = $this->db->select('branches', ['id', 'name'], ['organization_id' => $this->orgId, 'deleted' => 0]);
+        return view('config/alert-rule-post', [
+            'rule' => $rule,
+            'branches' => $branches
+        ]);
+    }
 
-        $revenue7Days = array_sum(array_column($dailyData, 'daily_rev'));
+    public function Store()
+    {
+        $validator = app()->validate(['title' => 'required', 'threshold_value' => 'required']);
+        if ($validator->fails()) return response()->json(['status' => 'error', 'alert' => $validator->first()], 400);
 
-        // Lấy tổng doanh thu 7 ngày trước đó (Để so sánh WoW)
-        $prev7DaysRev = $this->db->query("
-            SELECT SUM(total) as prev_rev 
-            FROM invoices 
-            WHERE organization_id = :org $branchSql 
-            AND invoice_date >= DATE_SUB(CURDATE(), INTERVAL 13 DAY)
-            AND invoice_date < DATE_SUB(CURDATE(), INTERVAL 6 DAY)
-        ", $params)->fetch()['prev_rev'] ?? 0;
+        $this->db->insert('alert_rules', [
+            'id'              => uuid(),
+            'organization_id' => $this->orgId,
+            'title'           => app()->xss->clean(request('title')),
+            'module'          => request('module'),
+            'metric'          => request('metric'),
+            'condition_type'  => request('condition_type'),
+            'threshold_value' => str_replace(',', '', request('threshold_value')),
+            'time_frame'      => request('time_frame'),
+            'target_branches' => request('target_branches'), // Lưu chuỗi ID chi nhánh
+            'is_active'       => request('is_active') ? 1 : 0,
+            'created_at'      => date('Y-m-d H:i:s')
+        ]);
 
-        $wowGrowth = $prev7DaysRev > 0 ? (($revenue7Days - $prev7DaysRev) / $prev7DaysRev) * 100 : 0;
+        return response()->json([
+            'status' => 'success', 
+            'alert' => 'Tạo quy tắc cảnh báo thành công',
+            'redirect' => '/config/alerts'
+        ]);
+    }
 
-        // Cảnh báo nếu doanh thu 7 ngày qua giảm hơn 20% so với tuần trước
-        $isAlert = $wowGrowth < -20;
+    public function Update($id)
+    {
+        $validator = app()->validate(['title' => 'required', 'threshold_value' => 'required']);
+        if ($validator->fails()) return response()->json(['status' => 'error', 'alert' => $validator->first()], 400);
 
-        return view('reports/red-alert', compact('revenue7Days', 'prev7DaysRev', 'wowGrowth', 'isAlert', 'dailyData'));
+        $this->db->update('alert_rules', [
+            'title'           => app()->xss->clean(request('title')),
+            'module'          => request('module'),
+            'metric'          => request('metric'),
+            'condition_type'  => request('condition_type'),
+            'threshold_value' => str_replace(',', '', request('threshold_value')),
+            'time_frame'      => request('time_frame'),
+            'target_branches' => request('target_branches'),
+            'is_active'       => request('is_active') ? 1 : 0
+        ], ['id' => $id, 'organization_id' => $this->orgId]);
+
+        return response()->json([
+            'status' => 'success', 
+            'alert' => 'Cập nhật quy tắc thành công',
+            'redirect' => '/config/alerts'
+        ]);
+    }
+
+    public function Delete($id)
+    {
+        $this->db->delete('alert_rules', ['id' => $id, 'organization_id' => $this->orgId]);
+        return response()->json(['status' => 'success', 'alert' => 'Đã xóa quy tắc', 'redirect' => '/config/alerts']);
+    }
+
+    public function Toggle($id)
+    {
+        $status = request('status') ? 1 : 0;
+        $this->db->update('alert_rules', ['is_active' => $status], ['id' => $id, 'organization_id' => $this->orgId]);
+        return response()->json(['status' => 'success', 'alert' => 'Đã cập nhật trạng thái']);
+    }
+
+    // =========================================================
+    // ALERT ENGINE: HỆ THỐNG QUÉT VÀ ĐÁNH GIÁ QUY TẮC
+    // =========================================================
+
+    public function RunScanner()
+    {
+        // 1. Lấy toàn bộ quy tắc đang kích hoạt của tổ chức này
+        $rules = $this->db->select('alert_rules', '*', [
+            'organization_id' => $this->orgId,
+            'is_active' => 1
+        ]);
+
+        $triggeredCount = 0;
+
+        foreach ($rules as $rule) {
+            // Kiểm tra xem hôm nay đã báo động cho quy tắc này chưa (Tránh spam thông báo liên tục)
+            $alreadyAlertedToday = $this->db->has('alert_logs', [
+                'rule_id' => $rule['id'],
+                'created_at[>=]' => date('Y-m-d 00:00:00')
+            ]);
+            
+            if ($alreadyAlertedToday) continue;
+
+            $currentValue = 0;
+
+            // --- KIỂM TRA MODULE CHI PHÍ (EXPENSES) ---
+            if ($rule['module'] == 'expenses') {
+                $where = ['organization_id' => $this->orgId, 'deleted' => 0];
+                
+                // Lọc thời gian
+                if ($rule['time_frame'] == 'this_month') {
+                    $where['expense_date[>=]'] = date('Y-m-01');
+                } elseif ($rule['time_frame'] == 'today') {
+                    $where['expense_date'] = date('Y-m-d');
+                }
+
+                // Lọc chi nhánh
+                if (!empty($rule['target_branches'])) {
+                    $where['branch_id'] = explode(',', $rule['target_branches']);
+                }
+
+                // Tính toán Metric
+                if ($rule['metric'] == 'sum_amount') {
+                    $currentValue = $this->db->sum('expenses', 'amount', $where);
+                }
+            }
+
+            // --- THÊM CÁC MODULE KHÁC Ở ĐÂY (INVOICES, CUSTOMERS...) SAU NÀY ---
+
+            // 2. Đánh giá điều kiện (Evaluate)
+            $isViolated = false;
+            $threshold = (float)$rule['threshold_value'];
+            $currentValue = (float)$currentValue;
+
+            if ($rule['condition_type'] == '>' && $currentValue > $threshold) $isViolated = true;
+            if ($rule['condition_type'] == '<' && $currentValue < $threshold) $isViolated = true;
+
+            // 3. Nếu vi phạm, ghi vào Log để báo động
+            if ($isViolated) {
+                $message = "⚠️ Cảnh báo: [{$rule['title']}] đã chạm ngưỡng! Hiện tại: " . number_format($currentValue) . " (Ngưỡng: " . number_format($threshold) . ").";
+                
+                $this->db->insert('alert_logs', [
+                    'id'              => uuid(),
+                    'rule_id'         => $rule['id'],
+                    'organization_id' => $this->orgId,
+                    'message'         => $message,
+                    'is_read'         => 0,
+                    'created_at'      => date('Y-m-d H:i:s')
+                ]);
+                $triggeredCount++;
+            }
+        }
+
+        return response()->json(['status' => 'success', 'scanned' => count($rules), 'triggered' => $triggeredCount]);
+    }
+
+    // API Lấy danh sách thông báo chưa đọc (Cho cái Chuông)
+    public function GetUnreadAlerts()
+    {
+        $alerts = $this->db->select('alert_logs', '*', [
+            'organization_id' => $this->orgId,
+            'is_read' => 0,
+            'ORDER' => ['created_at' => 'DESC'],
+            'LIMIT' => 10
+        ]);
+
+        return response()->json(['status' => 'success', 'count' => count($alerts), 'data' => $alerts]);
+    }
+
+    // API Đánh dấu đã đọc
+    public function MarkAlertRead($id)
+    {
+        $this->db->update('alert_logs', ['is_read' => 1], ['id' => $id, 'organization_id' => $this->orgId]);
+        return response()->json(['status' => 'success']);
     }
 }

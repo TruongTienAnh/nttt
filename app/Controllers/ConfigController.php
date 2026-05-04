@@ -1,14 +1,14 @@
 <?php
 namespace App\Controllers;
 
-class ConfigController
+class ConfigController extends BaseController
 {
-    protected $app;
+    // protected $app;
 
-    public function __construct()
-    {
-        $this->app = app();
-    }
+    // public function __construct()
+    // {
+    //     $this->app = app();
+    // }
 
     // =========================================================
     // BRANCHES (Chi nhánh)
@@ -87,7 +87,7 @@ class ConfigController
 
     public function BrandEdit()
     {
-        $id = app()->request->params('id');
+        $id = request('id');
 
         $branch = app()->db->get('branches', '*', [
             'id'      => $id,
@@ -115,7 +115,7 @@ class ConfigController
 
     public function BrandUpdate()
     {
-        $id = app()->request->params('id');
+        $id = request('id');
 
         $branch = app()->db->get('branches', 'id', [
             'id'      => $id,
@@ -178,7 +178,7 @@ class ConfigController
 
     public function BrandDelete()
     {
-        $id = app()->request->params('id');
+        $id = request('id');
 
         $branch = app()->db->get('branches', 'id', [
             'id'      => $id,
@@ -205,7 +205,7 @@ class ConfigController
 
     public function BrandRestore()
     {
-        $id = app()->request->params('id');
+        $id = request('id');
 
         $branch = app()->db->get('branches', 'id', [
             'id'      => $id,
@@ -232,7 +232,7 @@ class ConfigController
 
     public function BrandToggleStatus()
     {
-        $id = app()->request->params('id');
+        $id = request('id');
 
         $branch = app()->db->get('branches', ['id', 'is_active'], [
             'id'      => $id,
@@ -257,6 +257,131 @@ class ConfigController
             'status'     => 'success',
             'alert'      => $newStatus ? 'Đã kích hoạt chi nhánh' : 'Đã tắt chi nhánh',
             'new_status' => $newStatus,
+        ]);
+    }
+
+    // ==========================================
+    // DANH MỤC CHI PHÍ (EXPENSE CATEGORIES)
+    // ==========================================
+
+    // ==========================================
+    // DANH MỤC CHI PHÍ (EXPENSE CATEGORIES)
+    // ==========================================
+
+    public function ExpenseCategories() {
+        $orgId = $_SESSION['organization_id'] ?? "e027cf6e-538d-4257-9691-068b36e280f8";
+        
+        $categories = app()->db->select("expense_categories", "*", [
+            "organization_id" => $orgId,
+            "deleted" => 0,
+            "ORDER" => ["created_at" => "DESC"]
+        ]);
+
+        return view('config/expense-categories', [
+            'categories' => $categories
+        ]);
+    }
+
+    public function ExpenseCategoryPost() {
+        $id = request('id');
+        $category = null;
+        if ($id) {
+            $category = app()->db->get("expense_categories", "*", ["id" => $id]);
+        }
+
+        return view('config/expense-categories-post', [
+            'category' => $category
+        ]);
+    }
+
+    public function SaveExpenseCategory() {
+        $id = request('id');
+        $orgId = $_SESSION['organization_id'] ?? "e027cf6e-538d-4257-9691-068b36e280f8";
+        
+        $data = [
+            "name" => app()->xss->clean(request('name')),
+            "description" => app()->xss->clean(request('description')),
+            "is_active" => request('is_active') ? 1 : 0,
+            "updated_at" => date('Y-m-d H:i:s')
+        ];
+
+        if (empty($data['name'])) {
+            return response()->json(['status' => 'error', 'alert' => 'Vui lòng nhập tên danh mục!']);
+        }
+
+        if (!$id) {
+            $data['id'] = uuid();
+            $data['organization_id'] = $orgId;
+            $data['deleted'] = 0;
+            $data['created_at'] = date('Y-m-d H:i:s');
+            app()->db->insert("expense_categories", $data);
+        } else {
+            app()->db->update("expense_categories", $data, ["id" => $id]);
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'alert' => 'Lưu danh mục thành công!',
+            'redirect' => '/config/expense-categories' // main.bundle.js sẽ bắt lệnh này để đóng modal và load lại bảng
+        ]);
+    }
+
+    public function ToggleExpenseCategoryStatus() {
+        $id = request('id');
+        if ($id) {
+            app()->db->update("expense_categories", [
+                "is_active" => request('status'),
+                "updated_at" => date('Y-m-d H:i:s')
+            ], ["id" => $id]);
+
+            return response()->json([
+                'status' => 'success',
+                'alert' => 'Đã cập nhật trạng thái!'
+            ]);
+        }
+    }
+
+    public function DeleteExpenseCategory() {
+        $id = request('id');
+        if ($id) {
+            app()->db->update("expense_categories", [
+                "deleted" => 1,
+                "updated_at" => date('Y-m-d H:i:s')
+            ], ["id" => $id]);
+            
+            return response()->json([
+                'status' => 'success', 
+                'alert' => 'Đã xóa danh mục thành công!',
+                'redirect' => '/config/expense-categories' // Reload bảng để cập nhật
+            ]);
+        }
+    }
+
+    public function BulkDeleteExpenseCategories() {
+        $idsRaw = request('ids'); // Nhận về chuỗi "id1,id2,id3"
+        
+        // Cắt chuỗi thành mảng
+        if (is_string($idsRaw)) {
+            $ids = array_filter(explode(',', $idsRaw));
+        } else {
+            $ids = $idsRaw;
+        }
+
+        if (empty($ids) || !is_array($ids)) {
+            return response()->json(['status' => 'error', 'alert' => 'Vui lòng chọn ít nhất một mục để xóa!']);
+        }
+
+        app()->db->update("expense_categories", [
+            "deleted" => 1,
+            "updated_at" => date('Y-m-d H:i:s')
+        ], [
+            "id" => $ids // Medoo hỗ trợ truyền mảng ID để update hàng loạt
+        ]);
+
+        return response()->json([
+            'status' => 'success',
+            'alert' => 'Đã xóa ' . count($ids) . ' mục thành công!',
+            'redirect' => '/config/expense-categories'
         ]);
     }
 }

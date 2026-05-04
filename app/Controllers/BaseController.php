@@ -6,10 +6,12 @@ class BaseController
     protected $db;
     protected $orgId;
     protected $branchId;
+    protected $user;
 
     public function __construct()
     {
         $this->db = app()->db;
+        $this->user = $_SESSION['account'] ?? null;
 
         // 1. Lấy Organization ID từ session
         $this->orgId = $_SESSION['organization_id'] ?? "e027cf6e-538d-4257-9691-068b36e280f8";
@@ -47,5 +49,60 @@ class BaseController
         }
         
         return $where;
+    }
+
+    // Ví dụ một hàm parse chi nhánh chuẩn để dùng cho mọi báo cáo
+    protected function getMultiBranchFilter($requestBranchParam) {
+        // Nếu chọn tất cả, trả về rỗng để Query quét toàn hệ thống
+        if (empty($requestBranchParam) || $requestBranchParam === 'all') {
+            return []; 
+        }
+
+        // Nếu gửi lên là một mảng (VD từ multi-select checkbox)
+        if (is_array($requestBranchParam)) {
+            return ['branch_id' => $requestBranchParam]; // Trả về dạng mảng để Medoo dùng IN()
+        }
+
+        // Nếu gửi lên chuỗi cách nhau bằng dấu phẩy "id1,id2"
+        if (strpos($requestBranchParam, ',') !== false) {
+            return ['branch_id' => explode(',', $requestBranchParam)];
+        }
+
+        // Nếu chỉ có 1 ID
+        return ['branch_id' => $requestBranchParam];
+    }
+
+    /**
+     * Kiểm tra quyền (trả về true/false)
+     */
+    protected function can($permissionCode)
+    {
+        if (!$this->user) return false;
+
+        // Super Admin: Luôn có quyền (Ví dụ ID = 1)
+        if (isset($this->user['permission_id']) && $this->user['permission_id'] == 1) {
+            return true;
+        }
+        // Kiểm tra trong mảng permissions đã unserialize ở Middleware/Auth
+        return isset($this->user['permissions'][$permissionCode]);
+    }
+
+    /**
+     * Chốt chặn quyền (Chặn đứng nếu không có quyền)
+     */
+    protected function requirePermission($permissionCode)
+    {
+        if (!$this->can($permissionCode)) {
+            if (app()->request->isAjax()) {
+                header('Content-Type: application/json');
+                echo json_encode([
+                    'status' => 'error', 
+                    'alert' => 'Bạn không có quyền thực hiện hành động này!'
+                ]);
+                exit;
+            }
+            // Nếu không phải Ajax, chuyển hướng hoặc báo lỗi
+            die("Cảnh báo: Bạn không có quyền truy cập chức năng này.");
+        }
     }
 }

@@ -54,7 +54,7 @@ window.NeoUI = {
         
         // Logic chọn Target
         const targetSelector = options.target || (appContent && !isToLogin ? '#app-content' : 'body');
-        const selectSelector = options.select || (targetSelector !== 'body' ? targetSelector : undefined);
+        const selectSelector = options.select || undefined;
 
         // Gọi Ajax
         try {

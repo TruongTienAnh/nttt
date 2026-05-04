@@ -1,7 +1,7 @@
 <?php
     $app->group(['prefix' => '/app', 'middleware' => 'auth'], function () use($app) {
 
-        $app->router('/account', 'GET', ['App\Controllers\AccountController', 'Account']);
+        // $app->router('/account', 'GET', ['App\Controllers\AccountController', 'Account']);
 
         $app->router('/profile', 'GET', ['App\Controllers\AccountController', 'Profiles']);
 

@@ -25,5 +25,9 @@ $app->group(['prefix' => '', 'middleware' => 'auth'], function () use ($app) {
     $app->router('/alerts/loss-risk', 'GET', ['App\Controllers\AlertController', 'LossRisk']);
     $app->router('/alerts/red-alert', 'GET', ['App\Controllers\AlertController', 'RedAlert']);
 
+    // BÁO CÁO TỰ CHỌN (DYNAMIC REPORTS)
+    $app->router('/reports/dynamic',          'GET',  ['App\Controllers\DynamicReportController', 'Index']);
+    $app->router('/api/reports/generate',     'POST', ['App\Controllers\DynamicReportController', 'Generate']);
+
 
 });
