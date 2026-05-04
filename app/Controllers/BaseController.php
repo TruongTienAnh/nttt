@@ -105,4 +105,42 @@ class BaseController
             die("Cảnh báo: Bạn không có quyền truy cập chức năng này.");
         }
     }
+    /**
+     * Lấy danh sách ID các chi nhánh mà User hiện tại được phép xem
+     */
+    protected function getAllowedBranchIds()
+    {
+        $userId = $this->user['id'] ?? 0;
+        $permissionId = $this->user['permission_id'] ?? 0;
+
+        if ($permissionId == 1) return []; // Admin: Trả về mảng rỗng (không giới hạn)
+
+        $branches = $this->db->select('brands_linkables', 'branch_id', ['account_id' => $userId]);
+        return !empty($branches) ? $branches : [-1]; // Chặn nếu không có quyền
+    }
+
+    /**
+     * Tự động sinh điều kiện WHERE lọc theo chi nhánh an toàn
+     */
+    protected function getSecureBranchFilter($tableAlias = '')
+    {
+        $prefix = $tableAlias ? $tableAlias . '.' : '';
+        $allowedIds = $this->getAllowedBranchIds();
+        $where = [$prefix . 'organization_id' => $this->orgId];
+
+        if ($this->branchId !== 'all') {
+            // Nếu user chọn 1 chi nhánh: Kiểm tra quyền xem chi nhánh đó
+            if ($this->user['permission_id'] == 1 || in_array($this->branchId, $allowedIds)) {
+                $where[$prefix . 'branch_id'] = $this->branchId;
+            } else {
+                $where[$prefix . 'branch_id'] = -1; // Hack URL -> Chặn
+            }
+        } else {
+            // Nếu chọn "Tất cả": Kế toán chỉ được thấy những chi nhánh họ được giao
+            if ($this->user['permission_id'] != 1) {
+                $where[$prefix . 'branch_id'] = $allowedIds;
+            }
+        }
+        return $where;
+    }
 }

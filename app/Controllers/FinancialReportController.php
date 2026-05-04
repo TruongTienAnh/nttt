@@ -1,166 +1,286 @@
 <?php
 namespace App\Controllers;
 
-class FinancialReportController extends BaseController 
-{
-    // --- 1. LỢI NHUẬN RÒNG & TỶ TRỌNG CHI NHÁNH ---
-    public function NetProfit() 
-    {
-        if (!$this->orgId) { header('Location: /login'); exit; }
+use Medoo\Medoo;
+
+class FinancialReportController extends BaseController {
+
+    /**
+     * Hàm bổ trợ: Trích xuất điều kiện WHERE chi nhánh thành chuỗi SQL an toàn 
+     * (Dùng cho các câu query thuần phức tạp)
+     */
+    private function getRawBranchSql($prefix = '') {
+        $where = $this->getSecureBranchFilter($prefix ? trim($prefix, '.') : '');
+        $col = $prefix . 'branch_id';
         
-        $params = ['org' => $this->orgId, 'month' => date('Y-m')];
-        $branchSql = $this->branchId !== 'all' ? " AND branch_id = '{$this->branchId}' " : "";
-
-        $revenue = $this->db->query("SELECT SUM(total) as rev FROM invoices WHERE organization_id = :org $branchSql AND DATE_FORMAT(invoice_date, '%Y-%m') = :month", $params)->fetch()['rev'] ?? 0;
-        $expenses = $this->db->query("SELECT SUM(amount) as exp FROM expenses WHERE organization_id = :org $branchSql AND DATE_FORMAT(expense_date, '%Y-%m') = :month AND deleted = 0", $params)->fetch()['exp'] ?? 0;
-        $netProfit = $revenue - $expenses;
-
-        $branchBreakdown = [];
-        if ($this->branchId === 'all') {
-            $branchBreakdown = $this->db->query("
-                SELECT b.name, COALESCE(SUM(i.total), 0) as rev
-                FROM branches b
-                LEFT JOIN invoices i ON i.branch_id = b.id AND DATE_FORMAT(i.invoice_date, '%Y-%m') = :month
-                WHERE b.organization_id = :org AND b.deleted = 0
-                GROUP BY b.id ORDER BY rev DESC
-            ", $params)->fetchAll();
+        if (isset($where[$col])) {
+            $bIds = $where[$col];
+            if (is_array($bIds)) {
+                if (empty($bIds)) return " AND 1=0 "; // Chặn nếu không có quyền
+                return " AND {$col} IN (" . implode(',', array_map('intval', $bIds)) . ") ";
+            } elseif ($bIds == -1) {
+                return " AND 1=0 "; // Chặn nếu cố tình hack
+            } else {
+                return " AND {$col} = " . intval($bIds) . " ";
+            }
         }
-
-        $trendData = $this->db->query("
-            SELECT m.month, COALESCE(SUM(i.total), 0) as revenue
-            FROM (SELECT DATE_FORMAT(DATE_SUB(NOW(), INTERVAL n MONTH), '%Y-%m') as month FROM (SELECT 0 as n UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5) d) m
-            LEFT JOIN invoices i ON DATE_FORMAT(i.invoice_date, '%Y-%m') = m.month AND i.organization_id = :org $branchSql
-            GROUP BY m.month ORDER BY m.month ASC
-        ", ['org' => $this->orgId])->fetchAll();
-
-        // FIX: Đã bổ sung đường dẫn /finance/
-        return view('reports/net-profit', compact('revenue', 'expenses', 'netProfit', 'trendData', 'branchBreakdown'));
+        return ""; // Trả về rỗng nếu Admin xem Tất cả (quét toàn hệ thống)
     }
 
-    // --- 2. ĐIỂM HÒA VỐN ĐA ĐIỂM ---
-    public function BreakEven() 
-    {
-        if (!$this->orgId) { header('Location: /login'); exit; }
-        $params = ['org' => $this->orgId, 'month' => date('Y-m')];
-        
-        $branches = [];
-        if ($this->branchId === 'all') {
-            $branches = $this->db->query("SELECT id, name FROM branches WHERE organization_id = :org AND deleted = 0", ['org' => $this->orgId])->fetchAll();
-        } else {
-            $branches = [['id' => $this->branchId, 'name' => 'Chi nhánh hiện tại']];
+    // ====================================================
+    // 1. BÁO CÁO LÃI LỖ THUẦN (NET PROFIT)
+    // ====================================================
+    public function NetProfitReport() {
+        $this->requirePermission('reports.finance');
+        $year = request('year', date('Y'));
+
+        $bSqlInv = $this->getRawBranchSql('i.');
+        $bSqlExp = $this->getRawBranchSql('e.');
+        $orgId = $this->orgId;
+
+        $revData = $this->db->query("
+            SELECT DATE_FORMAT(invoice_date, '%m') as month, SUM(total) as val 
+            FROM invoices i 
+            WHERE organization_id = '{$orgId}' AND YEAR(invoice_date) = '{$year}' {$bSqlInv} 
+            GROUP BY month
+        ")->fetchAll();
+
+        $expData = $this->db->query("
+            SELECT DATE_FORMAT(expense_date, '%m') as month, SUM(amount) as val 
+            FROM expenses e 
+            WHERE organization_id = '{$orgId}' AND deleted = 0 AND YEAR(expense_date) = '{$year}' {$bSqlExp} 
+            GROUP BY month
+        ")->fetchAll();
+
+        $monthlyData = [];
+        $totalRev = 0; $totalExp = 0;
+
+        for ($i = 1; $i <= 12; $i++) {
+            $m = str_pad($i, 2, '0', STR_PAD_LEFT);
+            $rev = 0; $exp = 0;
+            
+            foreach ($revData as $r) if ($r['month'] === $m) $rev = $r['val'];
+            foreach ($expData as $e) if ($e['month'] === $m) $exp = $e['val'];
+
+            $totalRev += $rev;
+            $totalExp += $exp;
+
+            $monthlyData[] = [
+                'month' => "Tháng $m",
+                'revenue' => (float)$rev,
+                'expenses' => (float)$exp,
+                'profit' => (float)($rev - $exp),
+                'margin' => $rev > 0 ? round((($rev - $exp)/$rev)*100, 1) : 0
+            ];
         }
 
-        $breakEvenList = [];
+        $netProfit = $totalRev - $totalExp;
+        $avgMargin = $totalRev > 0 ? round(($netProfit/$totalRev)*100, 2) : 0;
+
+        return view('reports/net-profit', compact('year', 'monthlyData', 'totalRev', 'totalExp', 'netProfit', 'avgMargin'));
+    }
+
+    // ====================================================
+    // 2. BÁO CÁO P&L & SO SÁNH CHI NHÁNH (LOCATION P&L)
+    // ====================================================
+    public function LocationPnlReport() {
+        $this->requirePermission('reports.finance');
+        $from = request('from_date', date('Y-m-01'));
+        $to = request('to_date', date('Y-m-d'));
+        
+        $userId = $this->user['id'] ?? 0;
+        $permissionId = $this->user['permission_id'] ?? 0;
+
+        if ($permissionId == 1) {
+            $branches = $this->db->select('branches', ['id', 'name'], ['organization_id' => $this->orgId, 'deleted' => 0]);
+        } else {
+            $branches = $this->db->select('branches', ['[>]brands_linkables' => ['id' => 'branch_id']], ['branches.id', 'branches.name'], [
+                'brands_linkables.account_id' => $userId, 'branches.organization_id' => $this->orgId, 'branches.deleted' => 0
+            ]);
+        }
+
+        $pnlData = [];
+        $totalSystemRev = 0.0;
+
         foreach ($branches as $b) {
-            $bId = $b['id'];
+            // Ép kiểu (float) ngay lúc query xong
+            $rev = (float)($this->db->sum('invoices', 'total', [
+                'branch_id' => $b['id'], 'organization_id' => $this->orgId, 
+                'invoice_date[<>]' => [$from . ' 00:00:00', $to . ' 23:59:59']
+            ]) ?? 0);
+
+            $exp = (float)($this->db->sum('expenses', 'amount', [
+                'branch_id' => $b['id'], 'organization_id' => $this->orgId, 'deleted' => 0,
+                'expense_date[<>]' => [$from, $to]
+            ]) ?? 0);
+
+            $profit = $rev - $exp;
+            $totalSystemRev += $rev;
+
+            $pnlData[$b['id']] = [
+                'id' => $b['id'],
+                'name' => $b['name'],
+                'revenue' => $rev,
+                'expenses' => $exp,
+                'profit' => $profit,
+                'margin' => $rev > 0 ? round(($profit / $rev) * 100, 2) : 0
+            ];
+        }
+
+        foreach ($pnlData as $key => $p) {
+            $pnlData[$key]['contribution'] = $totalSystemRev > 0 ? round(($p['revenue'] / $totalSystemRev) * 100, 1) : 0;
+        }
+
+        $branchA = request('branch_a');
+        $branchB = request('branch_b');
+        $comparison = null;
+
+        if ($branchA && $branchB && isset($pnlData[$branchA]) && isset($pnlData[$branchB])) {
+            $comparison = [ 'A' => $pnlData[$branchA], 'B' => $pnlData[$branchB] ];
+        }
+
+        usort($pnlData, fn($a, $b) => $b['profit'] <=> $a['profit']);
+
+        return view('reports/location-pnl', [
+            'pnlData' => $pnlData, 'branches' => $branches, 'comparison' => $comparison,
+            'filter' => ['from_date' => $from, 'to_date' => $to, 'branch_a' => $branchA, 'branch_b' => $branchB]
+        ]);
+    }
+
+    // ====================================================
+    // 3. ĐIỂM HÒA VỐN (BREAK-EVEN ANALYSIS)
+    // ====================================================
+    public function BreakEvenReport() {
+        $this->requirePermission('reports.finance');
+        $month = request('month', date('Y-m'));
+        $bSqlInv = $this->getRawBranchSql('i.');
+        $bSqlExp = $this->getRawBranchSql('e.');
+        $orgId = $this->orgId;
+
+        $revenue = $this->db->query("SELECT SUM(total) as val FROM invoices i WHERE organization_id = '{$orgId}' AND DATE_FORMAT(invoice_date, '%Y-%m') = '{$month}' {$bSqlInv}")->fetch()['val'] ?? 0;
+        
+        // Tách chi phí cố định (Fixed) và biến đổi (Variable)
+        $expensesData = $this->db->query("
+            SELECT c.name as cat_name, SUM(e.amount) as val 
+            FROM expenses e 
+            LEFT JOIN expense_categories c ON e.category = c.id
+            WHERE e.organization_id = '{$orgId}' AND e.deleted = 0 AND DATE_FORMAT(e.expense_date, '%Y-%m') = '{$month}' {$bSqlExp}
+            GROUP BY e.category
+        ")->fetchAll();
+
+        $fixedCosts = 0; $variableCosts = 0;
+        foreach ($expensesData as $e) {
+            $name = mb_strtolower($e['cat_name'] ?? '', 'UTF-8');
+            // Cố định: Lương, Thuê mặt bằng, Điện nước...
+            if (strpos($name, 'lương') !== false || strpos($name, 'thuê') !== false || strpos($name, 'mặt bằng') !== false) {
+                $fixedCosts += $e['val'];
+            } else {
+                $variableCosts += $e['val'];
+            }
+        }
+        
+        if ($fixedCosts == 0 && $variableCosts == 0) {
+            $totalExp = $this->db->query("SELECT SUM(amount) as val FROM expenses e WHERE organization_id = '{$orgId}' AND deleted = 0 AND DATE_FORMAT(expense_date, '%Y-%m') = '{$month}' {$bSqlExp}")->fetch()['val'] ?? 0;
+            $fixedCosts = $totalExp * 0.6; // Mặc định 60% fixed nếu không phân loại
+            $variableCosts = $totalExp * 0.4;
+        }
+
+        $totalExp = $fixedCosts + $variableCosts;
+        $profit = $revenue - $totalExp;
+        
+        $marginRatio = $revenue > 0 ? (($revenue - $variableCosts) / $revenue) : 0;
+        $breakEvenPoint = $marginRatio > 0 ? ($fixedCosts / $marginRatio) : 0;
+        $safetyMargin = $revenue > 0 ? (($revenue - $breakEvenPoint) / $revenue) * 100 : 0;
+
+        return view('reports/break-even', compact('month', 'revenue', 'fixedCosts', 'variableCosts', 'totalExp', 'profit', 'breakEvenPoint', 'marginRatio', 'safetyMargin'));
+    }
+
+    // ====================================================
+    // 4. DỰ BÁO TÀI CHÍNH (FORECASTING)
+    // ====================================================
+    public function ForecastReport() {
+        $this->requirePermission('reports.finance');
+        $bSqlInv = $this->getRawBranchSql('i.');
+        $orgId = $this->orgId;
+        
+        // Lấy lịch sử 6 tháng gần nhất
+        $history = $this->db->query("
+            SELECT DATE_FORMAT(invoice_date, '%Y-%m') as month, SUM(total) as val 
+            FROM invoices i 
+            WHERE organization_id = '{$orgId}' {$bSqlInv}
+            GROUP BY month ORDER BY month DESC LIMIT 6
+        ")->fetchAll();
+        
+        $history = array_reverse($history);
+        $forecast = [];
+        $sum = 0; $count = count($history);
+        
+        foreach ($history as $h) { $sum += $h['val']; }
+        $avg = $count > 0 ? $sum / $count : 0;
+        $growthRate = 1.05; // Giả định tăng trưởng trung bình 5%/tháng
+        
+        if ($count > 0) {
+            $lastMonthStr = $history[$count-1]['month'];
+            for ($i = 1; $i <= 3; $i++) {
+                $nextMonth = date('Y-m', strtotime($lastMonthStr . "-01 +$i month"));
+                $projectedVal = $avg * pow($growthRate, $i);
+                $forecast[] = [ 'month' => $nextMonth, 'val' => $projectedVal ];
+            }
+        }
+        
+        return view('reports/forecast', compact('history', 'forecast'));
+    }
+
+    // ====================================================
+    // 5. HIỆU QUẢ ĐẦU TƯ (ROI MARKETING)
+    // ====================================================
+    public function RoiReport() {
+        $this->requirePermission('reports.finance');
+        $year = request('year', date('Y'));
+        $bSqlInv = $this->getRawBranchSql('i.');
+        $bSqlExp = $this->getRawBranchSql('e.');
+        $orgId = $this->orgId;
+
+        $stmtMkt = $this->db->query("
+            SELECT DATE_FORMAT(e.expense_date, '%m') AS month, SUM(e.amount) AS val 
+            FROM expenses e 
+            LEFT JOIN expense_categories c ON e.category = c.id
+            WHERE e.organization_id = '{$orgId}' AND e.deleted = 0 AND YEAR(e.expense_date) = '{$year}' 
+            AND (LOWER(c.name) LIKE '%quảng cáo%' OR LOWER(c.name) LIKE '%marketing%' OR LOWER(c.name) LIKE '%ads%')
+            {$bSqlExp} GROUP BY month
+        ");
+        $marketingData = $stmtMkt ? $stmtMkt->fetchAll(\PDO::FETCH_ASSOC) : [];
+
+        $stmtRev = $this->db->query("
+            SELECT DATE_FORMAT(invoice_date, '%m') AS month, SUM(total) AS val 
+            FROM invoices i 
+            WHERE organization_id = '{$orgId}' AND YEAR(invoice_date) = '{$year}' {$bSqlInv} GROUP BY month
+        ");
+        $revData = $stmtRev ? $stmtRev->fetchAll(\PDO::FETCH_ASSOC) : [];
+
+        $monthlyData = [];
+        $totalRev = 0; $totalMkt = 0;
+
+        for ($i = 1; $i <= 12; $i++) {
+            $m = str_pad($i, 2, '0', STR_PAD_LEFT);
+            $rev = 0; $mkt = 0;
             
-            // FIX: Bổ sung điều kiện organization_id = :org để tránh lỗi sập PDO
-            $rev = $this->db->query("SELECT SUM(total) as rev FROM invoices WHERE organization_id = :org AND branch_id = '$bId' AND DATE_FORMAT(invoice_date, '%Y-%m') = :month", $params)->fetch()['rev'] ?? 0;
-            $expData = $this->db->query("SELECT category, SUM(amount) as amt FROM expenses WHERE organization_id = :org AND branch_id = '$bId' AND DATE_FORMAT(expense_date, '%Y-%m') = :month AND deleted = 0 GROUP BY category", $params)->fetchAll();
-            
-            $fixed = 0; $variable = 0;
-            foreach ($expData as $e) {
-                if (in_array($e['category'], ['rent', 'salary'])) $fixed += $e['amt']; else $variable += $e['amt'];
+            foreach ($revData as $r) {
+                if (isset($r['month']) && $r['month'] === $m) $rev = $r['val'];
+            }
+            foreach ($marketingData as $e) {
+                if (isset($e['month']) && $e['month'] === $m) $mkt = $e['val'];
             }
 
-            $grossMarginRatio = $rev > 0 ? ($rev - $variable) / $rev : 0;
-            $bePoint = $grossMarginRatio > 0 ? $fixed / $grossMarginRatio : $fixed;
-            $progress = $bePoint > 0 ? min(100, ($rev / $bePoint) * 100) : ($rev > 0 ? 100 : 0);
+            $totalRev += $rev; $totalMkt += $mkt;
+            $roi = $mkt > 0 ? (($rev - $mkt) / $mkt) * 100 : 0;
 
-            $breakEvenList[] = [
-                'name' => $b['name'], 'revenue' => $rev, 'fixed' => $fixed, 'variable' => $variable, 'bePoint' => $bePoint, 'progress' => $progress
+            $monthlyData[] = [
+                'month' => "Tháng $m", 'revenue' => (float)$rev, 'marketing' => (float)$mkt, 'roi' => round($roi, 2)
             ];
         }
 
-        usort($breakEvenList, fn($a, $b) => $b['progress'] <=> $a['progress']);
-        return view('reports/break-even', compact('breakEvenList'));
-    }
-
-    // --- 3. DỰ BÁO DOANH THU ---
-    public function Forecast() 
-    {
-        if (!$this->orgId) { header('Location: /login'); exit; }
-        $params = ['org' => $this->orgId, 'month' => date('Y-m')];
-        $branchSql = $this->branchId !== 'all' ? " AND branch_id = '{$this->branchId}' " : "";
-        $revenue = $this->db->query("SELECT SUM(total) as rev FROM invoices WHERE organization_id = :org $branchSql AND DATE_FORMAT(invoice_date, '%Y-%m') = :month", $params)->fetch()['rev'] ?? 0;
-        
-        $currentDay = (int)date('d');
-        $daysInMonth = (int)date('t');
-        $forecastRevenue = $currentDay > 0 ? ($revenue / $currentDay) * $daysInMonth : 0;
-        
-        return view('reports/forecast', compact('revenue', 'forecastRevenue', 'currentDay', 'daysInMonth'));
-    }
-
-    // --- 4. BẢNG XẾP HẠNG P&L CHI NHÁNH ---
-    public function LocationPnL() 
-    {
-        if (!$this->orgId) { header('Location: /login'); exit; }
-        if ($this->branchId !== 'all') {
-            return "<div class='alert alert-warning m-5 text-center'>Vui lòng chọn <b>Tất cả chi nhánh</b> trên thanh công cụ để xem bảng xếp hạng so sánh đa điểm.</div>";
-        }
-
-        $params = ['org' => $this->orgId, 'month' => date('Y-m')];
-        
-        $locationPnL = $this->db->query("
-            SELECT 
-                b.name as branch_name,
-                COALESCE(i.revenue, 0) as revenue,
-                COALESCE(e.cost, 0) as cost,
-                (COALESCE(i.revenue, 0) - COALESCE(e.cost, 0)) as profit,
-                CASE WHEN COALESCE(i.revenue, 0) > 0 THEN ((COALESCE(i.revenue, 0) - COALESCE(e.cost, 0)) / COALESCE(i.revenue, 0) * 100) ELSE 0 END as margin
-            FROM branches b
-            LEFT JOIN (
-                SELECT branch_id, SUM(total) as revenue FROM invoices WHERE organization_id = :org AND DATE_FORMAT(invoice_date, '%Y-%m') = :month GROUP BY branch_id
-            ) i ON b.id = i.branch_id
-            LEFT JOIN (
-                SELECT branch_id, SUM(amount) as cost FROM expenses WHERE organization_id = :org AND DATE_FORMAT(expense_date, '%Y-%m') = :month AND deleted = 0 GROUP BY branch_id
-            ) e ON b.id = e.branch_id
-            WHERE b.organization_id = :org AND b.deleted = 0
-            ORDER BY profit DESC
-        ", $params)->fetchAll();
-
-        return view('reports/location-pnl', compact('locationPnL'));
-    }
-
-    // --- 5. SO SÁNH HIỆU QUẢ RÓT VỐN (ROI) ---
-    public function RoiPayback() 
-    {
-        if (!$this->orgId) { header('Location: /login'); exit; }
-        if ($this->branchId !== 'all') {
-            return "<div class='alert alert-warning m-5 text-center'>Vui lòng chọn <b>Tất cả chi nhánh</b> để xem báo cáo so sánh tốc độ thu hồi vốn giữa các điểm bán.</div>";
-        }
-
-        $params = ['org' => $this->orgId];
-        $branches = $this->db->query("SELECT id, name FROM branches WHERE organization_id = :org AND deleted = 0", $params)->fetchAll();
-        
-        $roiData = [];
-        $investmentPerBranch = 1000000000; // Giả sử vốn setup 1 tỷ / chi nhánh.
-
-        foreach ($branches as $b) {
-            $bId = $b['id'];
-            
-            // FIX: Bổ sung điều kiện organization_id = :org
-            $rev = $this->db->query("SELECT SUM(total) as rev FROM invoices WHERE organization_id = :org AND branch_id = '$bId'", $params)->fetch()['rev'] ?? 0;
-            $exp = $this->db->query("SELECT SUM(amount) as exp FROM expenses WHERE organization_id = :org AND branch_id = '$bId' AND deleted = 0", $params)->fetch()['exp'] ?? 0;
-            
-            $accumulatedProfit = $rev - $exp;
-            $roi = ($accumulatedProfit / $investmentPerBranch) * 100;
-
-            // FIX: Bổ sung organization_id = :org vào các subquery và an toàn hóa lệnh fetch()
-            $avgProfit3MData = $this->db->query("
-                SELECT (COALESCE((SELECT SUM(total) FROM invoices WHERE organization_id = :org AND branch_id = '$bId' AND invoice_date >= DATE_SUB(NOW(), INTERVAL 3 MONTH)), 0) 
-                      - COALESCE((SELECT SUM(amount) FROM expenses WHERE organization_id = :org AND branch_id = '$bId' AND expense_date >= DATE_SUB(NOW(), INTERVAL 3 MONTH) AND deleted = 0), 0)) / 3 as avg_profit
-            ", $params)->fetch();
-            
-            $avgProfit3M = $avgProfit3MData ? (float)$avgProfit3MData['avg_profit'] : 0;
-            $paybackMonths = $avgProfit3M > 0 ? ($investmentPerBranch - $accumulatedProfit) / $avgProfit3M : -1;
-
-            $roiData[] = [
-                'name' => $b['name'], 'accumulatedProfit' => $accumulatedProfit, 'roi' => $roi, 'avgProfit3M' => $avgProfit3M, 'paybackMonths' => $paybackMonths
-            ];
-        }
-
-        usort($roiData, fn($a, $b) => $b['roi'] <=> $a['roi']);
-        return view('reports/roi', compact('roiData', 'investmentPerBranch'));
+        $overallRoi = $totalMkt > 0 ? (($totalRev - $totalMkt) / $totalMkt) * 100 : 0;
+        return view('reports/roi', compact('year', 'monthlyData', 'totalRev', 'totalMkt', 'overallRoi'));
     }
 }

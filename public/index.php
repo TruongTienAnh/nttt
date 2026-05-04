@@ -2,6 +2,8 @@
 if (function_exists('opcache_reset')) {
     opcache_reset();
 }
+
+date_default_timezone_set('Asia/Ho_Chi_Minh');
 try {
     // 1. Gọi file bootstrap để lấy instance $app
     $app = require_once __DIR__ . '/../config/bootstrap.php';

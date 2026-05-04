@@ -47,6 +47,7 @@ class PermissionHelper
             'Báo cáo & Phân tích' => [
                 'reports.customers' => 'Xem báo cáo Khách hàng (RFM, Churn...)',
                 'reports.finance'   => 'Xem báo cáo Tài chính (Lợi nhuận, ROI...)',
+                'reports.custom'    => 'Xem báo cáo Tùy chọn',
             ]
         ];
     }

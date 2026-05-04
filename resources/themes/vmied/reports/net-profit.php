@@ -1,51 +1,77 @@
 <?php $this->extend('layouts/app') ?>
 <?php $this->section('content') ?>
 <div class="container-fluid py-4 animate-fade-up">
-    <div class="mb-4">
-        <h1 class="h3 fw-bold mb-1">Báo cáo Lợi nhuận ròng (P&L Summary)</h1>
-        <p class="text-secondary">Thống kê doanh thu, chi phí và lợi nhuận thực tế theo tháng.</p>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold mb-1"><i class="bi bi-graph-up-arrow text-success me-2"></i>Báo cáo Lãi Lỗ Thuần (P&L)</h2>
+            <p class="text-secondary small">Phân tích chênh lệch Doanh thu & Chi phí theo từng tháng trong năm.</p>
+        </div>
+        <form action="" method="GET" class="d-flex gap-2">
+            <select name="year" class="form-select border-0 shadow-sm rounded-3 fw-bold bg-white" onchange="this.form.submit()">
+                <?php for($y = date('Y'); $y >= date('Y') - 3; $y--): ?>
+                    <option value="<?= $y ?>" <?= $year == $y ? 'selected' : '' ?>>Năm tài chính <?= $y ?></option>
+                <?php endfor; ?>
+            </select>
+        </form>
     </div>
 
-    <div class="row g-3 mb-4">
-        <div class="col-md-4">
-            <div class="clean-card p-4 border-0 shadow-sm text-center">
-                <div class="text-secondary small fw-bold mb-2 text-uppercase">Tổng doanh thu</div>
-                <div class="h2 mb-0 fw-bold text-success"><?= number_format($revenue) ?> ₫</div>
+    <div class="row g-3 mb-4 text-center">
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm rounded-4 p-4 border-start border-4 border-primary h-100">
+                <div class="text-secondary small fw-bold text-uppercase">Tổng Doanh Thu</div>
+                <div class="h3 mb-0 fw-bold text-dark"><?= number_format($totalRev) ?> ₫</div>
             </div>
         </div>
-        <div class="col-md-4">
-            <div class="clean-card p-4 border-0 shadow-sm text-center">
-                <div class="text-secondary small fw-bold mb-2 text-uppercase">Tổng chi phí</div>
-                <div class="h2 mb-0 fw-bold text-danger"><?= number_format($expenses) ?> ₫</div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm rounded-4 p-4 border-start border-4 border-danger h-100">
+                <div class="text-secondary small fw-bold text-uppercase">Tổng Chi Phí</div>
+                <div class="h3 mb-0 fw-bold text-danger"><?= number_format($totalExp) ?> ₫</div>
             </div>
         </div>
-        <div class="col-md-4">
-            <div class="clean-card p-4 border-0 shadow-sm text-center bg-primary bg-opacity-10">
-                <div class="text-primary small fw-bold mb-2 text-uppercase">Lợi nhuận ròng</div>
-                <div class="h2 mb-0 fw-bold <?= $netProfit >= 0 ? 'text-primary' : 'text-danger' ?>">
-                    <?= ($netProfit < 0 ? '-' : '') . number_format(abs($netProfit)) ?> ₫
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm rounded-4 p-4 border-start border-4 <?= $netProfit >= 0 ? 'border-success' : 'border-danger' ?> h-100">
+                <div class="text-secondary small fw-bold text-uppercase">Lợi Nhuận Ròng (Net Profit)</div>
+                <div class="h3 mb-0 fw-bold <?= $netProfit >= 0 ? 'text-success' : 'text-danger' ?>"><?= number_format($netProfit) ?> ₫</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm rounded-4 p-4 border-start border-4 border-info h-100">
+                <div class="text-secondary small fw-bold text-uppercase">Biên Lợi Nhuận TB</div>
+                <div class="h3 mb-0 fw-bold text-info"><?= $avgMargin ?>%</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-xl-8">
+            <div class="card border-0 shadow-sm rounded-4 p-4 h-100">
+                <h6 class="fw-bold mb-4">Biểu đồ Biến động Dòng tiền</h6>
+                <div style="height: 350px;"><canvas id="pnlChart"></canvas></div>
+            </div>
+        </div>
+        <div class="col-xl-4">
+            <div class="card border-0 shadow-sm rounded-4 h-100 overflow-hidden">
+                <div class="card-header bg-white border-bottom py-3"><h6 class="fw-bold mb-0">Hạch toán Chi tiết</h6></div>
+                <div class="table-responsive custom-scrollbar" style="max-height: 400px; overflow-y: auto;">
+                    <table class="table align-middle mb-0 fs-7">
+                        <thead class="bg-light sticky-top small text-secondary">
+                            <tr>
+                                <th class="ps-3 py-2">Kỳ kế toán</th>
+                                <th class="text-end py-2">Lợi nhuận</th>
+                                <th class="text-end pe-3 py-2">Biên (%)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach(array_reverse($monthlyData) as $m): ?>
+                            <tr>
+                                <td class="ps-3 fw-bold"><?= $m['month'] ?></td>
+                                <td class="text-end fw-bold <?= $m['profit'] >= 0 ? 'text-success' : 'text-danger' ?>"><?= number_format($m['profit']) ?></td>
+                                <td class="text-end pe-3 text-secondary font-monospace"><?= $m['margin'] ?>%</td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
                 </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="row g-3">
-        <div class="col-md-8">
-            <div class="clean-card p-4 border-0 shadow-sm h-100">
-                <h6 class="fw-bold mb-4"><i class="bi bi-graph-up me-2"></i>Biểu đồ xu hướng doanh thu (6 tháng)</h6>
-                <canvas id="profitTrendChart"></canvas>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="clean-card p-4 border-0 shadow-sm h-100">
-                <h6 class="fw-bold mb-4"><i class="bi bi-pie-chart me-2"></i>Tỷ trọng Doanh thu Chi nhánh</h6>
-                <?php if(!empty($branchBreakdown)): ?>
-                    <canvas id="branchPieChart"></canvas>
-                <?php else: ?>
-                    <div class="h-100 d-flex align-items-center justify-content-center text-secondary small">
-                        Chọn "Tất cả chi nhánh" để xem phân tích tỷ trọng.
-                    </div>
-                <?php endif; ?>
             </div>
         </div>
     </div>
@@ -53,46 +79,19 @@
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-// Biểu đồ đường xu hướng
-new Chart(document.getElementById('profitTrendChart'), {
-    type: 'line',
-    data: {
-        labels: <?= json_encode(array_column($trendData, 'month')) ?>,
-        datasets: [{
-            label: 'Doanh thu',
-            data: <?= json_encode(array_column($trendData, 'revenue')) ?>,
-            borderColor: '#f25f5c',
-            backgroundColor: 'rgba(242, 95, 92, 0.1)',
-            fill: true, tension: 0.4
-        }]
-    },
-    options: { 
-        responsive: true, 
-        maintainAspectRatio: true 
+    const pnlCtx = document.getElementById('pnlChart');
+    if (pnlCtx) {
+        new Chart(pnlCtx, {
+            type: 'bar',
+            data: {
+                labels: <?= json_encode(array_column($monthlyData, 'month')) ?>,
+                datasets: [
+                    { label: 'Doanh thu', data: <?= json_encode(array_column($monthlyData, 'revenue')) ?>, backgroundColor: '#2a9d8f', borderRadius: 4 },
+                    { label: 'Chi phí', data: <?= json_encode(array_column($monthlyData, 'expenses')) ?>, backgroundColor: '#e63946', borderRadius: 4 }
+                ]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
     }
-});
-
-<?php if(!empty($branchBreakdown)): ?>
-// Biểu đồ tròn tỷ trọng chi nhánh
-new Chart(document.getElementById('branchPieChart'), {
-    type: 'doughnut',
-    data: {
-        labels: <?= json_encode(array_column($branchBreakdown, 'name')) ?>,
-        datasets: [{
-            data: <?= json_encode(array_column($branchBreakdown, 'rev')) ?>,
-            backgroundColor: ['#2a9d8f', '#e9c46a', '#f4a261', '#e76f51', '#264653']
-        }]
-    },
-    options: { 
-        responsive: true, 
-        maintainAspectRatio: true, 
-        plugins: { 
-            legend: { 
-                position: 'bottom' 
-            } 
-        } 
-    }
-});
-<?php endif; ?>
 </script>
 <?php $this->endSection() ?>

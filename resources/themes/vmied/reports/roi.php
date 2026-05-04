@@ -1,66 +1,70 @@
 <?php $this->extend('layouts/app') ?>
 <?php $this->section('content') ?>
 <div class="container-fluid py-4 animate-fade-up">
-    <div class="mb-4">
-        <h1 class="h3 fw-bold">Tốc độ Thu hồi vốn Đa điểm (ROI Tracking)</h1>
-        <p class="text-secondary">Giả định vốn đầu tư ban đầu: <b><?= number_format($investmentPerBranch) ?>đ / chi nhánh</b>. Tốc độ thu hồi vốn dựa trên Lợi nhuận trung bình 3 tháng gần nhất.</p>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold mb-1"><i class="bi bi-pie-chart text-danger me-2"></i>Hiệu quả Đầu tư (ROI Marketing)</h2>
+            <p class="text-secondary small">Đánh giá doanh thu sinh ra trên mỗi đồng chi phí Quảng cáo/Marketing.</p>
+        </div>
+        <form action="" method="GET" class="d-flex gap-2">
+            <select name="year" class="form-select border-0 shadow-sm fw-bold bg-white" onchange="this.form.submit()">
+                <?php for($y = date('Y'); $y >= date('Y') - 3; $y--): ?><option value="<?= $y ?>" <?= $year == $y ? 'selected' : '' ?>><?= $y ?></option><?php endfor; ?>
+            </select>
+        </form>
     </div>
 
-    <div style="max-height: 65vh; overflow-y: auto; overflow-x: hidden; padding-right: 12px;" class="custom-scrollbar">
-        <div class="row g-4">
-            <?php foreach($roiData as $idx => $r): 
-                $progress = min(100, max(0, ($r['accumulatedProfit'] / $investmentPerBranch) * 100));
-                $isRecovered = $progress >= 100;
-            ?>
-            <div class="col-md-6">
-                <div class="clean-card p-4 h-100 border-0 shadow-sm position-relative overflow-hidden">
-                    <?php if($isRecovered): ?>
-                        <div class="position-absolute top-0 end-0 bg-success text-white px-3 py-1 fw-bold" style="border-bottom-left-radius: 10px;">Đã hoàn vốn</div>
-                    <?php endif; ?>
-                    
-                    <h4 class="fw-bold mb-3 d-flex align-items-center gap-2">
-                        <span class="text-secondary">#<?= $idx + 1 ?></span> <?= htmlspecialchars($r['name']) ?>
-                    </h4>
-                    
-                    <div class="row text-center mb-4">
-                        <div class="col-6 border-end">
-                            <div class="text-secondary small fw-bold mb-1">LỢI NHUẬN TÍCH LŨY</div>
-                            <div class="h4 fw-bold text-success"><?= number_format($r['accumulatedProfit']) ?>đ</div>
-                        </div>
-                        <div class="col-6">
-                            <div class="text-secondary small fw-bold mb-1">ROI</div>
-                            <div class="h4 fw-bold text-primary"><?= round($r['roi'], 1) ?>%</div>
-                        </div>
-                    </div>
-
-                    <div class="mb-2 d-flex justify-content-between small fw-bold">
-                        <span class="text-secondary">Tiến độ thu hồi vốn</span>
-                        <span class="<?= $isRecovered ? 'text-success' : 'text-dark' ?>"><?= round($progress, 1) ?>%</span>
-                    </div>
-                    <div class="progress mb-4" style="height: 10px; border-radius: 10px;">
-                        <div class="progress-bar <?= $isRecovered ? 'bg-success' : 'bg-primary progress-bar-striped progress-bar-animated' ?>" style="width: <?= $progress ?>%"></div>
-                    </div>
-
-                    <div class="bg-light p-3 rounded-3 d-flex justify-content-between align-items-center">
-                        <div>
-                            <div class="small text-secondary fw-bold">Dự kiến hoàn vốn</div>
-                            <?php if($isRecovered): ?>
-                                <div class="fw-bold text-success">Đã hoàn thành</div>
-                            <?php elseif($r['paybackMonths'] > 0): ?>
-                                <div class="fw-bold text-dark">Còn <span class="text-danger fs-5"><?= round($r['paybackMonths'], 1) ?></span> tháng nữa</div>
-                            <?php else: ?>
-                                <div class="fw-bold text-danger">Đang lỗ, không thể tính</div>
-                            <?php endif; ?>
-                        </div>
-                        <div class="text-end">
-                            <div class="small text-secondary fw-bold">Tốc độ LN / Tháng</div>
-                            <div class="fw-bold text-dark"><?= number_format($r['avgProfit3M']) ?>đ</div>
-                        </div>
-                    </div>
-                </div>
+    <div class="row g-4 mb-4">
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm rounded-4 h-100 p-4 text-center bg-danger bg-opacity-10 border border-danger border-opacity-25">
+                <div class="text-danger small fw-bold text-uppercase mb-2">TỔNG ROI HỆ THỐNG</div>
+                <div class="display-4 fw-bold text-danger mb-3"><?= round($overallRoi) ?>%</div>
+                <div class="small text-dark">Với mỗi <b class="text-danger">1đ</b> chi cho Marketing,<br>hệ thống thu về <b class="text-success"><?= round(($totalRev / max($totalMkt, 1)), 1) ?>đ</b> doanh thu.</div>
             </div>
-            <?php endforeach; ?>
+        </div>
+        <div class="col-md-8">
+            <div class="card border-0 shadow-sm rounded-4 p-4 h-100">
+                <div style="height: 250px;"><canvas id="roiChart"></canvas></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+        <div class="table-responsive">
+            <table class="table align-middle mb-0">
+                <thead class="bg-light small text-secondary fw-bold text-uppercase">
+                    <tr><th class="ps-4 py-3">Kỳ kế toán</th><th class="text-end">Chi phí Marketing</th><th class="text-end">Doanh thu thu về</th><th class="text-end pe-4">Tỷ suất ROI</th></tr>
+                </thead>
+                <tbody>
+                    <?php foreach(array_reverse($monthlyData) as $m): ?>
+                    <tr>
+                        <td class="ps-4 fw-bold text-dark py-3"><?= $m['month'] ?></td>
+                        <td class="text-end fw-bold text-danger"><?= number_format($m['marketing']) ?> ₫</td>
+                        <td class="text-end fw-bold text-success"><?= number_format($m['revenue']) ?> ₫</td>
+                        <td class="text-end pe-4"><span class="badge <?= $m['roi'] > 0 ? 'bg-success' : 'bg-secondary' ?> px-3 py-2 rounded-pill"><?= $m['roi'] ?>%</span></td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const ctx = document.getElementById('roiChart');
+    if (ctx) {
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: <?= json_encode(array_column($monthlyData, 'month')) ?>,
+                datasets: [{
+                    label: 'Tỷ suất ROI (%)',
+                    data: <?= json_encode(array_column($monthlyData, 'roi')) ?>,
+                    borderColor: '#e63946', backgroundColor: 'rgba(230, 57, 70, 0.2)', fill: true, tension: 0.4
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+    }
+</script>
 <?php $this->endSection() ?>

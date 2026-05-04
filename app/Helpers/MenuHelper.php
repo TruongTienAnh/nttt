@@ -122,7 +122,7 @@ class MenuHelper
                     'title' => 'Báo cáo động', 
                     'link' => '/reports/dynamic', 
                     'icon' => 'bi-graph-down', 
-                    'perm' => 'reports.finance'
+                    'perm' => 'reports.custom'
                 ],
             ],
             'Quản trị' => [

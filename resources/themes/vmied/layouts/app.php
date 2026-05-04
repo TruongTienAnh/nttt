@@ -390,7 +390,7 @@
                     setInterval(() => { 
                         this.runScanner(); 
                         this.fetchAlerts(); 
-                    }, 60000); 
+                    }, 3600000); 
                 }
             }">
                 <a href="#" class="nav-link-custom" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="outside">

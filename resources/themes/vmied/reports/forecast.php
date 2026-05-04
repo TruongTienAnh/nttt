@@ -2,63 +2,72 @@
 <?php $this->section('content') ?>
 <div class="container-fluid py-4 animate-fade-up">
     <div class="mb-4">
-        <h1 class="h3 fw-bold">Dự báo Tài chính (Sales Forecasting)</h1>
-        <p class="text-secondary">Ước tính kết quả kinh doanh cuối tháng dựa trên hiệu suất ngày (Run-rate).</p>
+        <h2 class="fw-bold mb-1"><i class="bi bi- binoculars text-info me-2"></i>Dự báo Doanh Thu (Forecasting)</h2>
+        <p class="text-secondary small">Sử dụng dữ liệu 6 tháng gần nhất để dự phóng doanh thu 3 tháng tiếp theo.</p>
     </div>
 
-    <div class="row g-3 mb-4 text-center">
-        <div class="col-md-4">
-            <div class="clean-card p-4 border-0 shadow-sm">
-                <div class="text-secondary small fw-bold mb-2">ĐÃ ĐẠT ĐƯỢC (<?= $currentDay ?> ngày)</div>
-                <div class="h2 fw-bold text-dark"><?= number_format($revenue) ?> ₫</div>
-                <div class="progress mt-3" style="height: 6px;">
-                    <div class="progress-bar" style="width: <?= ($currentDay/$daysInMonth)*100 ?>%"></div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="clean-card p-4 border-0 shadow-sm border-start border-primary border-5">
-                <div class="text-primary small fw-bold mb-2 text-uppercase">Dự báo cuối tháng</div>
-                <div class="h2 fw-bold text-primary"><?= number_format($forecastRevenue) ?> ₫</div>
-                <div class="small text-secondary mt-2">Dựa trên tốc độ hiện tại</div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="clean-card p-4 border-0 shadow-sm">
-                <div class="text-secondary small fw-bold mb-2 text-uppercase">Mục tiêu thu/ngày tới</div>
-                <div class="h2 fw-bold text-accent">
-                    <?= number_format(($forecastRevenue - $revenue) / max(1, ($daysInMonth - $currentDay))) ?> ₫
-                </div>
-                <div class="small text-secondary mt-2">Để giữ vững tiến độ dự báo</div>
-            </div>
-        </div>
+    <div class="card border-0 shadow-sm rounded-4 p-4 mb-4">
+        <div style="height: 400px;"><canvas id="forecastChart"></canvas></div>
     </div>
 
-    <div class="clean-card p-4 border-0 shadow-sm">
-        <h6 class="fw-bold mb-4">Trực quan hóa tiến độ tháng (Actual vs Forecast)</h6>
-        <div style="height: 350px;"><canvas id="forecastChartPro"></canvas></div>
+    <div class="row g-4">
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm rounded-4 overflow-hidden h-100">
+                <div class="card-header bg-light border-bottom py-3"><h6 class="fw-bold text-secondary mb-0">Lịch sử (6 tháng qua)</h6></div>
+                <table class="table align-middle mb-0">
+                    <tbody>
+                        <?php foreach($history as $h): ?>
+                        <tr><td class="ps-4 fw-bold text-dark py-3"><?= $h['month'] ?></td><td class="text-end pe-4 fw-bold text-secondary"><?= number_format($h['val']) ?> ₫</td></tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm rounded-4 overflow-hidden h-100 border-info">
+                <div class="card-header bg-info bg-opacity-10 border-bottom-0 py-3"><h6 class="fw-bold text-info mb-0">Dự phóng (3 tháng tới)</h6></div>
+                <table class="table align-middle mb-0">
+                    <tbody>
+                        <?php foreach($forecast as $f): ?>
+                        <tr><td class="ps-4 fw-bold text-dark py-3"><i class="bi bi-stars text-warning me-2"></i><?= $f['month'] ?></td><td class="text-end pe-4 fw-bold text-info fs-5"><?= number_format($f['val']) ?> ₫</td></tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-new Chart(document.getElementById('forecastChartPro'), {
-    type: 'bar',
-    data: {
-        labels: ['Doanh thu thực tế', 'Dự kiến cần thu thêm', 'Tổng dự báo cuối tháng'],
-        datasets: [{
-            label: 'Số tiền (VNĐ)',
-            data: [<?= $revenue ?>, <?= $forecastRevenue - $revenue ?>, <?= $forecastRevenue ?>],
-            backgroundColor: ['#2a9d8f', '#e9c46a', '#264653'],
-            borderRadius: 8
-        }]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: { y: { beginAtZero: true } },
-        plugins: { legend: { display: false } }
+    const ctx = document.getElementById('forecastChart');
+    if (ctx) {
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [
+                    ...<?= json_encode(array_column($history, 'month')) ?>, 
+                    ...<?= json_encode(array_column($forecast, 'month')) ?>
+                ],
+                datasets: [{
+                    label: 'Doanh thu Lịch sử',
+                    data: [
+                        ...<?= json_encode(array_column($history, 'val')) ?>,
+                        ...Array(<?= count($forecast) ?>).fill(null)
+                    ],
+                    borderColor: '#2a9d8f', backgroundColor: '#2a9d8f', fill: false, tension: 0.3, pointRadius: 5
+                }, {
+                    label: 'Dự báo',
+                    data: [
+                        ...Array(<?= count($history) - 1 ?>).fill(null),
+                        <?= !empty($history) ? end($history)['val'] : 'null' ?>,
+                        ...<?= json_encode(array_column($forecast, 'val')) ?>
+                    ],
+                    borderColor: '#fca311', backgroundColor: '#fca311', fill: false, tension: 0.3, borderDash: [5, 5], pointRadius: 5
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
     }
-});
 </script>
 <?php $this->endSection() ?>

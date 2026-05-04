@@ -1,47 +1,56 @@
 <?php $this->extend('layouts/app') ?>
 <?php $this->section('content') ?>
 <div class="container-fluid py-4 animate-fade-up">
-    <div class="mb-4">
-        <h1 class="h3 fw-bold">Trạng thái Điểm Hòa Vốn (Break-even Tracker)</h1>
-        <p class="text-secondary">Tháng hiện tại: <?= date('m/Y') ?>. Theo dõi chi nhánh nào đã gánh xong định phí (Mặt bằng, Lương).</p>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold mb-1"><i class="bi bi-bullseye text-primary me-2"></i>Phân tích Điểm Hòa Vốn (Break-even)</h2>
+            <p class="text-secondary small">Tính toán mức doanh thu cần đạt để không bị lỗ dựa trên cấu trúc chi phí.</p>
+        </div>
+        <form action="" method="GET" class="d-flex gap-2">
+            <input type="month" name="month" class="form-control border-0 shadow-sm fw-bold bg-white" value="<?= $month ?>" onchange="this.form.submit()">
+        </form>
     </div>
 
-    <div style="max-height: 65vh; overflow-y: auto; overflow-x: hidden; padding-right: 12px;" class="custom-scrollbar">
-        <div class="clean-card border-0 shadow-sm p-0">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="bg-light">
-                    <tr class="small fw-bold text-secondary text-uppercase">
-                        <th class="ps-4 py-3">Chi nhánh</th>
-                        <th class="text-end">Doanh thu hiện tại</th>
-                        <th class="text-end">Mốc Hòa Vốn</th>
-                        <th class="pe-4" style="width: 30%">Tiến độ Về bờ</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach($breakEvenList as $b): 
-                        $isSafe = $b['progress'] >= 100;
-                    ?>
-                    <tr>
-                        <td class="ps-4 py-3 fw-bold fs-6"><?= htmlspecialchars($b['name']) ?></td>
-                        <td class="text-end fw-bold text-dark"><?= number_format($b['revenue']) ?>đ</td>
-                        <td class="text-end fw-bold text-secondary"><?= number_format($b['bePoint']) ?>đ</td>
-                        <td class="pe-4">
-                            <div class="d-flex align-items-center gap-3">
-                                <div class="progress flex-grow-1" style="height: 12px; border-radius: 6px;">
-                                    <div class="progress-bar <?= $isSafe ? 'bg-success' : 'bg-warning progress-bar-striped progress-bar-animated' ?>" style="width: <?= $b['progress'] ?>%"></div>
-                                </div>
-                                <span class="fw-bold <?= $isSafe ? 'text-success' : 'text-dark' ?>" style="min-width: 45px;"><?= round($b['progress']) ?>%</span>
-                            </div>
-                            <?php if(!$isSafe): ?>
-                                <div class="small text-danger text-end mt-1">Cần thêm <?= number_format($b['bePoint'] - $b['revenue']) ?>đ</div>
-                            <?php else: ?>
-                                <div class="small text-success text-end mt-1"><i class="bi bi-check-circle-fill"></i> Đã có lãi</div>
-                            <?php endif; ?>
-                        </td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
+    <div class="row g-4 mb-4">
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm rounded-4 h-100 p-4">
+                <h6 class="fw-bold text-dark mb-4">Cấu trúc Chi phí</h6>
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between small fw-bold mb-1"><span>Chi phí cố định (Lương, Mặt bằng...)</span><span class="text-danger"><?= number_format($fixedCosts) ?> ₫</span></div>
+                    <div class="progress" style="height: 6px;"><div class="progress-bar bg-danger" style="width: <?= $totalExp > 0 ? ($fixedCosts/$totalExp)*100 : 0 ?>%"></div></div>
+                </div>
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between small fw-bold mb-1"><span>Chi phí biến đổi (Vật tư, Hoa hồng...)</span><span class="text-warning"><?= number_format($variableCosts) ?> ₫</span></div>
+                    <div class="progress" style="height: 6px;"><div class="progress-bar bg-warning" style="width: <?= $totalExp > 0 ? ($variableCosts/$totalExp)*100 : 0 ?>%"></div></div>
+                </div>
+                <div class="p-3 bg-light rounded-3 text-center mt-auto">
+                    <div class="small fw-bold text-secondary text-uppercase mb-1">Tổng Chi Phí</div>
+                    <div class="h4 fw-bold text-dark mb-0"><?= number_format($totalExp) ?> ₫</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-8">
+            <div class="card border-0 shadow-sm rounded-4 h-100 p-4 bg-primary text-white position-relative overflow-hidden">
+                <i class="bi bi-bullseye position-absolute text-white opacity-10" style="font-size: 15rem; right: -20px; top: -50px;"></i>
+                <div class="row h-100 align-items-center position-relative z-1">
+                    <div class="col-sm-6 text-center text-sm-start mb-4 mb-sm-0">
+                        <div class="text-white-50 fw-bold text-uppercase mb-2">DOANH THU ĐIỂM HÒA VỐN</div>
+                        <div class="display-5 fw-bold mb-2"><?= number_format($breakEvenPoint) ?> ₫</div>
+                        <div class="small bg-white bg-opacity-25 d-inline-block px-3 py-1 rounded-pill">
+                            Lợi nhuận cận biên: <b><?= round($marginRatio * 100, 1) ?>%</b>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 border-start border-white border-opacity-25 ps-sm-4 text-center text-sm-start">
+                        <div class="text-white-50 fw-bold text-uppercase mb-2">DOANH THU THỰC TẾ</div>
+                        <div class="h2 fw-bold mb-3"><?= number_format($revenue) ?> ₫</div>
+                        <div class="fw-bold <?= $revenue >= $breakEvenPoint ? 'text-info' : 'text-warning' ?>">
+                            <i class="bi <?= $revenue >= $breakEvenPoint ? 'bi-emoji-smile' : 'bi-emoji-frown' ?> me-1"></i>
+                            <?= $revenue >= $breakEvenPoint ? 'Vượt điểm hòa vốn an toàn!' : 'Chưa đạt điểm hòa vốn.' ?>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>

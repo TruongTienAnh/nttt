@@ -1,98 +1,118 @@
 <?php
 namespace App\Controllers;
 
+use Medoo\Medoo;
+
 class CustomerReportController extends BaseController {
 
-    // --- HÀM DÙNG CHUNG: Lấy Điều kiện SQL và KPI ---
-    private function getBaseData() {
-        if (!$this->orgId) { header('Location: /login'); exit; }
+    // --- HÀM DÙNG CHUNG: Lấy KPI ---
+    private function getBaseStats($whereInvoices) {
+        $whereInvoices['customer_id[!]'] = null; // Bỏ qua khách lẻ không tên
 
-        $params = ['org' => $this->orgId];
-        $branchSql = "";
-        $branchSqlAlias = "";
-        
-        if ($this->branchId !== 'all') {
-            $branchSql = " AND branch_id = :branch ";
-            $branchSqlAlias = " AND i.branch_id = :branch ";
-            $params['branch'] = $this->branchId;
-        }
+        $stats = $this->db->get("invoices", [
+            "total_customers" => Medoo::raw('COUNT(DISTINCT <customer_id>)'),
+            "gross_revenue"   => Medoo::raw('SUM(<total>)'),
+            "total_orders"    => Medoo::raw('COUNT(<id>)')
+        ], $whereInvoices);
 
-        // Lấy KPI Tổng quan (Dùng chung cho cả 3 màn hình)
-        $stats = $this->db->query("
-            SELECT COUNT(DISTINCT customer_id) as total_customers, 
-                   SUM(total) as gross_revenue,
-                   AVG(total) as aov, 
-                   COUNT(id) as total_orders
-            FROM invoices 
-            WHERE organization_id = :org $branchSql AND customer_id IS NOT NULL
-        ", $params)->fetch();
+        $stats['total_customers'] = $stats['total_customers'] ?? 0;
+        $stats['gross_revenue'] = $stats['gross_revenue'] ?? 0;
+        $stats['total_orders'] = $stats['total_orders'] ?? 0;
+        $stats['aov'] = $stats['total_orders'] > 0 ? ($stats['gross_revenue'] / $stats['total_orders']) : 0;
 
-        if (!$stats) {
-            $stats = ['total_customers' => 0, 'gross_revenue' => 0, 'aov' => 0, 'total_orders' => 0];
-        }
-
-        return [$params, $branchSql, $branchSqlAlias, $stats];
+        return $stats;
     }
 
     // ====================================================
     // 1. BÁO CÁO RFM PHÂN KHÚC
     // ====================================================
     public function RfmReport() {
-        list($params, $branchSql, $branchSqlAlias, $stats) = $this->getBaseData();
+        $this->requirePermission('reports.customers');
+        $where = $this->getSecureBranchFilter('invoices');
+        $where['invoices.customer_id[!]'] = null;
 
-        $rfmList = $this->db->query("
-            SELECT c.full_name, c.phone, t.r_days, t.f_count, t.m_total,
-                CASE 
-                    WHEN t.m_total >= 5000000 AND t.f_count >= 5 THEN 'VIP'
-                    WHEN t.r_days > 60 THEN 'NGỦ ĐÔNG'
-                    WHEN t.f_count = 1 AND t.r_days <= 15 THEN 'MỚI'
-                    ELSE 'TIỀM NĂNG'
-                END as segment
-            FROM (
-                SELECT customer_id, DATEDIFF(NOW(), MAX(invoice_date)) as r_days, 
-                       COUNT(id) as f_count, SUM(total) as m_total
-                FROM invoices 
-                WHERE organization_id = :org $branchSql AND customer_id IS NOT NULL 
-                GROUP BY customer_id
-            ) as t
-            JOIN customers c ON t.customer_id = c.id
-            ORDER BY t.m_total DESC
-        ", $params)->fetchAll();
+        $stats = $this->getBaseStats($this->getSecureBranchFilter());
 
-        return view('reports/rfm', compact('stats', 'rfmList'));
+        // Lấy dữ liệu RFM bằng Medoo chuẩn hóa
+        $rfmRaw = $this->db->select('invoices', [
+            '[>]customers' => ['customer_id' => 'id']
+        ], [
+            'customers.full_name',
+            'customers.phone',
+            'r_days'  => Medoo::raw('DATEDIFF(NOW(), MAX(<invoices.invoice_date>))'),
+            'f_count' => Medoo::raw('COUNT(<invoices.id>)'),
+            'm_total' => Medoo::raw('SUM(<invoices.total>)')
+        ], array_merge($where, [
+            'GROUP' => 'invoices.customer_id',
+            'ORDER' => ['m_total' => 'DESC']
+        ]));
+
+        $rfmList = [];
+        foreach ($rfmRaw as $r) {
+            $r['segment'] = 'TIỀM NĂNG';
+            if ($r['m_total'] >= 5000000 && $r['f_count'] >= 5) $r['segment'] = 'VIP';
+            elseif ($r['r_days'] > 60) $r['segment'] = 'NGỦ ĐÔNG';
+            elseif ($r['f_count'] == 1 && $r['r_days'] <= 15) $r['segment'] = 'MỚI';
+            $rfmList[] = $r;
+        }
+
+        // BẢNG SO SÁNH CHI NHÁNH
+        $branchStats = [];
+        if ($this->branchId === 'all') {
+            $branchStats = $this->db->select('invoices', [
+                '[>]branches' => ['branch_id' => 'id']
+            ], [
+                'branches.name',
+                'total_customers' => Medoo::raw('COUNT(DISTINCT <invoices.customer_id>)'),
+                'revenue' => Medoo::raw('SUM(<invoices.total>)')
+            ], array_merge($where, [
+                'GROUP' => 'invoices.branch_id',
+                'ORDER' => ['revenue' => 'DESC']
+            ]));
+        }
+
+        return view('reports/rfm', compact('stats', 'rfmList', 'branchStats'));
     }
 
     // ====================================================
     // 2. PHÂN TÍCH VÒNG ĐỜI & CHURN RATE
     // ====================================================
     public function ChurnReport() {
-        list($params, $branchSql, $branchSqlAlias, $stats) = $this->getBaseData();
+        $this->requirePermission('reports.customers');
+        $where = $this->getSecureBranchFilter('invoices');
+        $where['invoices.customer_id[!]'] = null;
 
-        $churnData = $this->db->query("
-            SELECT churn_group, COUNT(*) as count FROM (
-                SELECT CASE 
-                    WHEN DATEDIFF(NOW(), MAX(invoice_date)) > 60 THEN 'Ngủ đông'
-                    WHEN DATEDIFF(NOW(), MAX(invoice_date)) > 30 THEN 'Rủi ro'
-                    ELSE 'Hoạt động'
-                END as churn_group
-                FROM invoices 
-                WHERE organization_id = :org $branchSql AND customer_id IS NOT NULL 
-                GROUP BY customer_id
-            ) as t GROUP BY churn_group
-        ", $params)->fetchAll();
+        $stats = $this->getBaseStats($this->getSecureBranchFilter());
 
-        // Lấy danh sách khách hàng có nguy cơ rời bỏ (r_days > 30)
-        $lostCustomers = $this->db->query("
-            SELECT c.full_name, c.phone, t.r_days, t.m_total
-            FROM (
-                SELECT customer_id, DATEDIFF(NOW(), MAX(invoice_date)) as r_days, SUM(total) as m_total
-                FROM invoices 
-                WHERE organization_id = :org $branchSql AND customer_id IS NOT NULL 
-                GROUP BY customer_id HAVING r_days > 30
-            ) as t
-            JOIN customers c ON t.customer_id = c.id
-            ORDER BY t.r_days DESC
-        ", $params)->fetchAll();
+        // Lấy Data Phân tích sức khỏe
+        $healthRaw = $this->db->select('invoices', [
+            'r_days' => Medoo::raw('DATEDIFF(NOW(), MAX(<invoice_date>))')
+        ], array_merge($where, ['GROUP' => 'customer_id']));
+
+        $churnData = ['Hoạt động' => 0, 'Rủi ro' => 0, 'Ngủ đông' => 0];
+        foreach ($healthRaw as $row) {
+            if ($row['r_days'] > 60) $churnData['Ngủ đông']++;
+            elseif ($row['r_days'] > 30) $churnData['Rủi ro']++;
+            else $churnData['Hoạt động']++;
+        }
+
+        // Lấy Khách hàng rời bỏ (>30 ngày)
+        $whereLost = $where;
+        $whereLost['HAVING'] = Medoo::raw('DATEDIFF(NOW(), MAX(<invoices.invoice_date>)) > 30');
+        
+        $lostCustomers = $this->db->select('invoices', [
+            '[>]customers' => ['customer_id' => 'id'],
+            '[>]branches' => ['branch_id' => 'id']
+        ], [
+            'customers.full_name',
+            'customers.phone',
+            'branches.name(branch_name)',
+            'r_days'  => Medoo::raw('DATEDIFF(NOW(), MAX(<invoices.invoice_date>))'),
+            'm_total' => Medoo::raw('SUM(<invoices.total>)')
+        ], array_merge($whereLost, [
+            'GROUP' => 'invoices.customer_id',
+            'ORDER' => ['r_days' => 'DESC']
+        ]));
 
         return view('reports/churn', compact('stats', 'churnData', 'lostCustomers'));
     }
@@ -101,17 +121,45 @@ class CustomerReportController extends BaseController {
     // 3. CROSS-SELL HỆ SINH THÁI
     // ====================================================
     public function CrossSellReport() {
-        list($params, $branchSql, $branchSqlAlias, $stats) = $this->getBaseData();
+        $this->requirePermission('reports.customers');
+        $where = $this->getSecureBranchFilter('i'); // Prefix i cho bảng invoices
 
+        $stats = $this->getBaseStats($this->getSecureBranchFilter());
+
+        // ==========================================
+        // FIX LỖI: Xử lý an toàn biến $branchSql
+        // ==========================================
+        $branchSql = "";
+        
+        // Chỉ thêm điều kiện lọc chi nhánh nếu $where có giới hạn branch_id
+        if (isset($where['i.branch_id'])) {
+            $bIds = $where['i.branch_id'];
+            if (is_array($bIds)) {
+                if (empty($bIds)) {
+                    $branchSql = " AND 1=0 "; // Bị chặn quyền
+                } else {
+                    $inClause = implode(',', array_map('intval', $bIds));
+                    $branchSql = " AND i.branch_id IN ($inClause) ";
+                }
+            } elseif ($bIds == -1) {
+                $branchSql = " AND 1=0 "; // Bị chặn quyền
+            } else {
+                $branchSql = " AND i.branch_id = " . intval($bIds) . " ";
+            }
+        }
+        // Nếu không có 'i.branch_id' => Tức là Admin đang xem Tất cả => $branchSql rỗng (quét toàn hệ thống)
+
+        // Thực thi Query phân tích giỏ hàng (Market Basket Analysis)
+        // Lưu ý: Nếu cột id dịch vụ của bạn không phải là 'service_id' (ví dụ: product_id), hãy sửa lại nhé!
         $crossSell = $this->db->query("
             SELECT a.name as p1, b.name as p2, COUNT(*) as freq
             FROM invoice_items a
             JOIN invoice_items b ON a.invoice_id = b.invoice_id AND a.service_id < b.service_id
             JOIN invoices i ON a.invoice_id = i.id
-            WHERE i.organization_id = :org $branchSqlAlias
+            WHERE i.organization_id = '{$this->orgId}' $branchSql
             GROUP BY a.name, b.name 
             ORDER BY freq DESC LIMIT 20
-        ", $params)->fetchAll();
+        ")->fetchAll();
 
         return view('reports/cross-sell', compact('stats', 'crossSell'));
     }
