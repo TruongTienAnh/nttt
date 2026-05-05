@@ -485,8 +485,8 @@
                 
                 <ul class="dropdown-menu dropdown-menu-solid py-2 mb-2 w-100 ms-2">
                     <li><h6 class="dropdown-header fs-8 text-uppercase fw-semibold opacity-75">Tài khoản</h6></li>
-                    <li><a class="dropdown-item fs-7 py-2 d-flex align-items-center rounded mx-1 px-3 m-0" href="/app/account"><i class="bi bi-person me-3 text-secondary"></i> Hồ sơ</a></li>
-                    <li><a class="dropdown-item fs-7 py-2 d-flex align-items-center rounded mx-1 px-3 m-0" href="/app/account"><i class="bi bi-gear me-3 text-secondary"></i> Tùy chỉnh</a></li>
+                    <li><a class="dropdown-item fs-7 py-2 d-flex align-items-center rounded mx-1 px-3 m-0" href="/app/profile"><i class="bi bi-person me-3 text-secondary"></i> Hồ sơ</a></li>
+                    <li><a class="dropdown-item fs-7 py-2 d-flex align-items-center rounded mx-1 px-3 m-0" href="/app/profile"><i class="bi bi-gear me-3 text-secondary"></i> Tùy chỉnh</a></li>
                     <li><hr class="dropdown-divider border-secondary-subtle opacity-50 my-1"></li>
                     <li><a class="dropdown-item fs-7 py-2 d-flex align-items-center rounded mx-1 px-3 text-danger m-0" href="/logout"><i class="bi bi-box-arrow-right me-3"></i> Đăng xuất</a></li>
                 </ul>

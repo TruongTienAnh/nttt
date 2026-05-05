@@ -19,17 +19,17 @@
                                 id="nav-security-tab" data-bs-toggle="pill" data-bs-target="#section-security" type="button" role="tab">
                             <i class="bi bi-shield-check fs-5"></i> Bảo mật
                         </button>
-                        <button class="nav-link d-flex align-items-center gap-3 py-3 px-4 rounded-4 text-start" 
+                        <!-- <button class="nav-link d-flex align-items-center gap-3 py-3 px-4 rounded-4 text-start" 
                                 id="nav-billing-tab" data-bs-toggle="pill" data-bs-target="#section-billing" type="button" role="tab">
                             <i class="bi bi-wallet2 fs-5"></i> Ví & Thanh toán
-                        </button>
-                        <button class="nav-link d-flex align-items-center gap-3 py-3 px-4 rounded-4 text-start" 
+                        </button> -->
+                        <!-- <button class="nav-link d-flex align-items-center gap-3 py-3 px-4 rounded-4 text-start" 
                                 id="nav-notifications-tab" data-bs-toggle="pill" data-bs-target="#section-notifications" type="button" role="tab">
                             <i class="bi bi-bell fs-5"></i> Thông báo
-                        </button>
+                        </button> -->
                     </div>
 
-                    <div class="mt-4 p-4 rounded-4 bg-white border shadow-sm">
+                    <!-- <div class="mt-4 p-4 rounded-4 bg-white border shadow-sm">
                         <div class="d-flex align-items-center gap-2 mb-2">
                             <span class="badge bg-danger-subtle text-danger rounded-pill px-2">New</span>
                         </div>
@@ -38,7 +38,7 @@
                         <a hx-get="/app/affiliate" href="#" hx-target="#app-content" hx-push-url="true" class="text-dark fw-bold text-decoration-none small d-flex align-items-center gap-1">
                             Xem chi tiết <i class="bi bi-arrow-right"></i>
                         </a>
-                    </div>
+                    </div> -->
                 </div>
             </div>
 
