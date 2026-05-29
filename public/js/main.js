@@ -117,3 +117,44 @@ function processDeposit() {
         alert('Đang chuyển hướng...');
     }
 }
+
+// ==========================================
+// HÀM KHỞI TẠO SELECT2 (Dùng TomSelect)
+// ==========================================
+window.initGlobalSelect2 = function() {
+    if (typeof TomSelect !== 'undefined') {
+        // Tìm tất cả các thẻ select có class 'use-select2'
+        document.querySelectorAll('.use-select2').forEach(el => {
+            // Chỉ khởi tạo nếu ô này chưa từng được khởi tạo
+            if (!el.tomselect) { 
+                new TomSelect(el, {
+                    plugins: ['remove_button'],
+                    maxOptions: 50,
+                    placeholder: el.getAttribute('placeholder') || "Tìm kiếm và chọn..."
+                });
+            }
+        });
+    }
+};
+
+// ==========================================
+// KHỞI TẠO GIAO DIỆN CHUNG (Khi tải trang lần đầu)
+// ==========================================
+document.addEventListener('DOMContentLoaded', () => {
+    initGlobalSelect2(); // Bật Select2
+    
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+});
+
+// ==========================================
+// KHỞI TẠO LẠI KHI DÙNG HTMX (Chuyển trang không load lại web)
+// ==========================================
+document.body.addEventListener('htmx:afterSwap', () => {
+    initGlobalSelect2(); // Bật lại Select2 cho các trang mới được load vào
+    
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+});

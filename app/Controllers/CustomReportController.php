@@ -3,9 +3,6 @@ namespace App\Controllers;
 
 class CustomReportController extends BaseController {
 
-    /**
-     * Trích xuất điều kiện WHERE chi nhánh thành chuỗi SQL an toàn 
-     */
     private function getRawBranchSql($prefix = '') {
         $where = $this->getSecureBranchFilter($prefix ? trim($prefix, '.') : '');
         $col = $prefix . 'branch_id';
@@ -27,71 +24,106 @@ class CustomReportController extends BaseController {
     public function Index() {
         $this->requirePermission('reports.custom');
         
-        // 1. Nhận tham số từ bộ lọc
+        // Nhận tham số
         $module = request('module', 'invoices'); 
         $metric = request('metric', 'sum'); 
-        $groupBy = request('group_by', 'branch'); 
+        $groupBy = request('group_by', 'none'); 
         $fromDate = request('from_date', date('Y-m-01'));
         $toDate = request('to_date', date('Y-m-d'));
+        
+        $branchIds = request('branch_ids', []);
+        $filters = request('filters', []);
+        $columns = request('columns', []);
 
-        // 2. Chặn Injection & Hack Parameter
-        $validModules = ['invoices', 'expenses'];
+        $validModules = ['invoices', 'expenses', 'customers'];
         if (!in_array($module, $validModules)) $module = 'invoices';
 
-        $bSql = $this->getRawBranchSql('t.');
+        $branches = $this->db->select('branches', ['id', 'name'], ['organization_id' => $this->orgId, 'deleted' => 0]);
+
         $orgId = $this->orgId;
+        
+        // 1. Build WHERE (Cả 3 bảng giờ đều có deleted và organization_id)
+        $whereSql = " t.organization_id = '{$orgId}' AND t.deleted = 0 ";
 
-        $dateCol = $module == 'invoices' ? 'invoice_date' : 'expense_date';
-        $valCol = $module == 'invoices' ? 'total' : 'amount';
+        $dateCol = 'created_at';
+        if ($module == 'invoices') $dateCol = 'invoice_date';
+        if ($module == 'expenses') $dateCol = 'expense_date';
+        
+        $whereSql .= " AND t.{$dateCol} BETWEEN '{$fromDate} 00:00:00' AND '{$toDate} 23:59:59' ";
 
-        // 3. Xây dựng điều kiện WHERE (Có bảo mật Chi nhánh)
-        $whereSql = " t.organization_id = '{$orgId}' {$bSql} AND t.{$dateCol} BETWEEN '{$fromDate} 00:00:00' AND '{$toDate} 23:59:59' ";
-        if ($module == 'expenses') {
-            $whereSql .= " AND t.deleted = 0 ";
+        // Lọc Chi nhánh (Giờ cả 3 bảng đều có branch_id)
+        $bSql = $this->getRawBranchSql('t.');
+        if (!empty($branchIds) && is_array($branchIds)) {
+            $bIdsStr = implode(',', array_map(function($id) { return "'".addslashes(trim($id))."'"; }, $branchIds));
+            $whereSql .= " {$bSql} AND t.branch_id IN ({$bIdsStr}) ";
+        } else {
+            $whereSql .= " {$bSql} ";
         }
 
-        // 4. Xây dựng cấu trúc SELECT, JOIN và GROUP BY
+        // Lọc Tự Chọn (Khớp đúng tên cột trong DB)
+        foreach ($filters as $key => $val) {
+            if ($val !== '' && $val !== null) {
+                $safeVal = addslashes(trim($val));
+                if (in_array($key, ['full_name', 'phone', 'email', 'invoice_no', 'title', 'note'])) {
+                    $whereSql .= " AND t.{$key} LIKE '%{$safeVal}%' ";
+                } else {
+                    $whereSql .= " AND t.{$key} = '{$safeVal}' ";
+                }
+            }
+        }
+
+        // 2. Build SELECT & GROUP
         $selectSql = "";
-        $joinSql = "";
+        $joinSql = " LEFT JOIN branches b ON t.branch_id = b.id ";
         $groupSql = "";
         $orderSql = "";
-
-        if ($groupBy == 'branch') {
-            $joinSql = " LEFT JOIN branches b ON t.branch_id = b.id ";
-            $selectSql = " b.name as label ";
-            $groupSql = " t.branch_id ";
-            $orderSql = " value DESC ";
-        } elseif ($groupBy == 'month') {
-            $selectSql = " DATE_FORMAT(t.{$dateCol}, '%Y-%m') as label ";
-            $groupSql = " label ";
-            $orderSql = " label DESC ";
-        } else {
-            $selectSql = " DATE(t.{$dateCol}) as label ";
-            $groupSql = " label ";
-            $orderSql = " label DESC ";
-        }
-
-        // Chọn hàm tính toán
-        if ($metric == 'sum') {
-            $selectSql .= ", SUM(t.{$valCol}) as value ";
-        } else {
-            $selectSql .= ", COUNT(t.id) as value ";
-        }
-
-        // 5. Thực thi Query Thô (Bỏ qua lỗi ngớ ngẩn của Medoo)
-        $sql = "SELECT {$selectSql} FROM {$module} t {$joinSql} WHERE {$whereSql} GROUP BY {$groupSql} ORDER BY {$orderSql}";
         
-        $stmt = $this->db->query($sql);
-        $results = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
+        $isDetail = ($groupBy == 'none'); 
 
-        // 6. Xử lý hiển thị
-        foreach ($results as &$r) {
-            if ($groupBy == 'branch' && empty($r['label'])) {
-                $r['label'] = 'Chi nhánh chung';
+        if ($isDetail) {
+            if (empty($columns)) {
+                $selectSql = " t.* "; 
+            } else {
+                $safeCols = array_map(function($c) { return "t." . preg_replace('/[^a-zA-Z0-9_]/', '', $c); }, $columns);
+                $selectSql = implode(", ", $safeCols);
             }
-            $r['value'] = (float)($r['value'] ?? 0);
+            $selectSql .= ", COALESCE(b.name, 'Hệ thống') as branch_name ";
+            $orderSql = " t.{$dateCol} DESC LIMIT 500 "; 
+        } else {
+            if ($groupBy == 'branch') {
+                $selectSql = " COALESCE(b.name, 'Hệ thống') as label ";
+                $groupSql = " t.branch_id ";
+            } elseif ($groupBy == 'month') {
+                $selectSql = " DATE_FORMAT(t.{$dateCol}, '%Y-%m') as label ";
+                $groupSql = " label ";
+            } else {
+                $selectSql = " DATE(t.{$dateCol}) as label ";
+                $groupSql = " label ";
+            }
+
+            $valCol = ($module == 'invoices') ? 'total' : (($module == 'expenses') ? 'amount' : 'id');
+            if ($metric == 'sum' && in_array($module, ['invoices', 'expenses'])) {
+                $selectSql .= ", SUM(t.{$valCol}) as value ";
+            } else {
+                $selectSql .= ", COUNT(t.id) as value ";
+            }
+            $orderSql = " value DESC ";
         }
 
-        return view('reports/custom', compact('results', 'module', 'metric', 'groupBy', 'fromDate', 'toDate'));
+        // 3. Thực thi Query
+        $results = [];
+        if (isset($_GET['module'])) {
+            $sql = "SELECT {$selectSql} FROM {$module} t {$joinSql} WHERE {$whereSql} ";
+            if (!$isDetail) $sql .= " GROUP BY {$groupSql} ";
+            $sql .= " ORDER BY {$orderSql} ";
+            
+            $stmt = $this->db->query($sql);
+            $results = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
+        }
+
+        return view('reports/custom', compact(
+            'results', 'module', 'metric', 'groupBy', 'fromDate', 'toDate', 
+            'branches', 'branchIds', 'filters', 'columns', 'isDetail'
+        ));
     }
 }
